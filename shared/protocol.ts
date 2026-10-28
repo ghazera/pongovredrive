@@ -1,3 +1,4 @@
+import { bossIds, type BossId } from "./bosses";
 import { modeKeys, type Mode } from "./modes";
 import { H, type State } from "./game";
 export type PlayerView = { name: string; ready: boolean; connected: boolean };
@@ -6,16 +7,17 @@ export type ServerMessage =
       type: "ROOM";
       code: string;
       mode: Mode;
+      boss?: BossId;
       players: (PlayerView | null)[];
       side: number;
       token: string;
       paused: boolean;
     }
-  | { type: "STATE"; state: State; paused: boolean; inputAck: [number, number] }
+  | { type: "STATE"; state: State; paused: boolean; inputAck: number[] }
   | { type: "ERROR"; message: string }
   | { type: "PONG"; time: number };
 export type ClientMessage =
-  | { type: "CREATE"; name: string; mode?: Mode }
+  | { type: "CREATE"; name: string; mode?: Mode; boss?: BossId }
   | { type: "JOIN"; code: string; name: string }
   | { type: "RESUME"; code: string; token: string }
   | { type: "READY" }
@@ -33,6 +35,12 @@ export function parseMessage(raw: string): ClientMessage | null {
       (m.type === "INPUT" || m.type === "POINTER") &&
       m.seq !== undefined &&
       (!Number.isSafeInteger(m.seq) || m.seq < 0)
+    )
+      return null;
+    if (
+      m.type === "CREATE" &&
+      m.boss !== undefined &&
+      !bossIds.includes(m.boss)
     )
       return null;
     const sequence = m.seq === undefined ? {} : { seq: m.seq };

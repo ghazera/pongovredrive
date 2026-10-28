@@ -1,8 +1,11 @@
+import { createBoss, stepBoss, type BossBattle } from "./boss";
+import { type BossId, bossLane } from "./bosses";
 import {
   MODES,
   paddleHeight,
   pulseActive,
   gravityCenter,
+  bumperY,
   type Mode,
 } from "./modes";
 export type { Mode } from "./modes";
@@ -17,14 +20,26 @@ export const W = 1280,
 export const MOUSE_SPEED = 1100;
 export type GameEvent = {
   id: number;
-  type: "paddle" | "wall" | "goal" | "win" | "serve" | "power";
+  type:
+    | "paddle"
+    | "wall"
+    | "goal"
+    | "win"
+    | "serve"
+    | "power"
+    | "boss-shot"
+    | "boss-hit"
+    | "boss-phase"
+    | "player-hit";
   x: number;
   y: number;
   side: number;
+  time?: number;
 };
 export type State = {
   ball: { x: number; y: number; vx: number; vy: number };
-  paddles: [number, number];
+  paddles: number[];
+  boss?: BossBattle;
   score: [number, number];
   phase: "countdown" | "playing" | "finished";
   timer: number;
@@ -36,10 +51,39 @@ export type State = {
   events: GameEvent[];
   mode: Mode;
 };
-export function createGame(mode: Mode = "classic"): State {
+export function createGame(
+  mode: Mode = "classic",
+  boss: BossId = "voltmaw",
+  count = 1,
+): State {
   return {
-    ball: { x: W / 2, y: H / 2, vx: 440, vy: 180 },
-    paddles: [H / 2, H / 2],
+    ball: {
+      x: mode === "ricochet" ? W / 2 - 140 : W / 2,
+      y: H / 2,
+      vx: mode === "blitz" ? 680 : 440,
+      vy: 180,
+    },
+    ...(mode === "boss"
+      ? {
+          boss: createBoss(
+            boss,
+            Math.max(1, Math.min(4, Math.floor(count) || 1)),
+          ),
+        }
+      : {}),
+    paddles:
+      mode === "boss"
+        ? Array.from(
+            { length: Math.max(1, Math.min(4, Math.floor(count) || 1)) },
+            (_, i) => {
+              const l = bossLane(
+                i,
+                Math.max(1, Math.min(4, Math.floor(count) || 1)),
+              );
+              return (l.top + l.bottom) / 2;
+            },
+          )
+        : [H / 2, H / 2],
     score: [0, 0],
     phase: "countdown",
     timer: 3,
@@ -52,7 +96,8 @@ export function createGame(mode: Mode = "classic"): State {
     mode,
   };
 }
-export function won(a: number, b: number) {
+export function won(a: number, b: number, mode: Mode = "classic") {
+  if (mode === "blitz") return a >= 5;
   return a >= 15 || (a >= 7 && a - b >= 2);
 }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -62,21 +107,18 @@ export function movePaddle(
   target: number | null,
   dt: number,
   height = 108,
+  bounds: readonly [number, number] = [height / 2, H - height / 2],
 ): number {
   if (!Number.isFinite(dt) || dt <= 0) return y;
-  const half = height / 2;
+  const [min, max] = bounds;
   if (target !== null && Number.isFinite(target)) {
-    const d = clamp(target, half, H - half) - y;
-    return clamp(
-      y + clamp(d, -MOUSE_SPEED * dt, MOUSE_SPEED * dt),
-      half,
-      H - half,
-    );
+    const d = clamp(target, min, max) - y;
+    return clamp(y + clamp(d, -MOUSE_SPEED * dt, MOUSE_SPEED * dt), min, max);
   }
   return clamp(
     y + (Number.isFinite(direction) ? clamp(direction, -1, 1) : 0) * SPEED * dt,
-    half,
-    H - half,
+    min,
+    max,
   );
 }
 function event(s: State, type: GameEvent["type"], side = -1) {
@@ -90,6 +132,10 @@ export function step(
   targets: readonly (number | null)[] = [],
 ): void {
   if (!Number.isFinite(dt) || dt <= 0 || s.phase === "finished") return;
+  if (s.boss) {
+    stepBoss(s, input, dt, targets);
+    return;
+  }
   // Substeps bound displacement below the ball radius, including unusually large frame deltas.
   const total = Math.min(dt, 0.25),
     n = Math.max(1, Math.ceil((total * MAX_SPEED) / 6)),
@@ -129,6 +175,29 @@ export function step(
       b.vx =
         (b.vx < 0 ? -1 : 1) *
         Math.sqrt(Math.max(0, speed * speed - b.vy * b.vy));
+    }
+    if (s.mode === "ricochet") {
+      const dx = b.x - W / 2,
+        dy = b.y - bumperY(s.elapsed),
+        d = Math.hypot(dx, dy),
+        radius = 54;
+      if (d < radius && d > 0) {
+        const nx = dx / d,
+          ny = dy / d,
+          dot = b.vx * nx + b.vy * ny;
+        if (dot < 0) {
+          b.vx -= 2 * dot * nx;
+          b.vy -= 2 * dot * ny;
+          const speed = Math.hypot(b.vx, b.vy);
+          b.vx = (b.vx < 0 ? -1 : 1) * Math.max(Math.abs(b.vx), speed * 0.45);
+          const scale = speed / Math.hypot(b.vx, b.vy);
+          b.vx *= scale;
+          b.vy *= scale;
+          event(s, "power");
+        }
+        b.x = W / 2 + nx * (radius + 0.1);
+        b.y = bumperY(s.elapsed) + ny * (radius + 0.1);
+      }
     }
     const old = b.x;
     b.x += b.vx * h;
@@ -181,20 +250,20 @@ export function step(
       );
       event(s, "goal", side);
       s.hits = 0;
-      if (won(s.score[side], s.score[1 - side])) {
+      if (won(s.score[side], s.score[1 - side], s.mode)) {
         s.phase = "finished";
         s.winner = side;
         event(s, "win", side);
         return;
       }
       s.ball = {
-        x: W / 2,
+        x: s.mode === "ricochet" ? W / 2 + (side === 0 ? -140 : 140) : W / 2,
         y: H / 2,
-        vx: side === 0 ? -440 : 440,
+        vx: (side === 0 ? -1 : 1) * (s.mode === "blitz" ? 680 : 440),
         vy: s.score.reduce((a, b) => a + b) % 2 ? 180 : -180,
       };
       s.phase = "countdown";
-      s.timer = 1.5;
+      s.timer = s.mode === "blitz" ? 0.65 : 1.5;
     }
   }
 }

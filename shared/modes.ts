@@ -1,4 +1,23 @@
 export const MODES = {
+  boss: {
+    title: "BOSS RAID",
+    description: "Face three monsters solo or in a 2–4 player co-op raid.",
+    color: "#ff8059",
+    acceleration: 1,
+  },
+  ricochet: {
+    title: "RICOCHET",
+    description:
+      "A moving central bumper redirects the ball. Expect the unexpected.",
+    color: "#7df9ff",
+    acceleration: 1.06,
+  },
+  blitz: {
+    title: "BLITZ",
+    description: "Fast serves, short breaks. First to 5 wins.",
+    color: "#ff6577",
+    acceleration: 1.11,
+  },
   classic: {
     title: "CLASSIC",
     description: "Pure rivalry. First to 7, win by 2.",
@@ -38,3 +57,11 @@ export const paddleHeight = (mode: Mode, hits: number) =>
   mode === "shrink" ? Math.max(52, 108 - Math.floor(hits / 2) * 8) : 108;
 export const gravityCenter = (elapsed: number) =>
   360 + Math.sin(elapsed * 0.7) * 155;
+
+export const bumperY = (elapsed: number) => 360 + Math.sin(elapsed * 0.8) * 180;
+export const rulesCaption = (mode: Mode) =>
+  mode === "boss"
+    ? "CO-OP · REFLECT ORBS · DEFEAT THE BOSS"
+    : mode === "blitz"
+      ? "FIRST TO 5 · SUDDEN DEATH"
+      : "FIRST TO 7 · WIN BY 2";

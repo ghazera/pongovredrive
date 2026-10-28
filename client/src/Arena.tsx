@@ -18,13 +18,15 @@ import { sound } from "./audio";
 import { Effects } from "./vfx";
 import { paddleHeight, pulseActive } from "../../shared/modes";
 import { PaddlePrediction } from "./prediction";
+import { raidHeight, raidBounds, bossLane, BOSSES } from "../../shared/bosses";
+import { drawBossBattle } from "./boss-render";
 import { drawMode } from "./mode-effects";
 export type ArenaControl = {
   state: State | null;
   paused: boolean;
   settings: Settings;
   side: number;
-  inputAck: [number, number];
+  inputAck: number[];
   send: (d: number) => number;
   sendPointer: (y: number) => number;
 };
@@ -57,7 +59,17 @@ export default function Arena({
       target = H / 2;
     const keys = new Set<string>();
     let mouseY: number | null = null;
-    const prediction = new PaddlePrediction(H / 2);
+    const prediction = new PaddlePrediction(
+      control.state?.paddles[control.side] ?? H / 2,
+    );
+    const height = (state: State) =>
+      state.boss
+        ? raidHeight(state.boss.players.length)
+        : paddleHeight(state.mode, state.hits);
+    const bounds = (state: State, side: number): readonly [number, number] =>
+      state.boss
+        ? raidBounds(side, state.boss.players.length)
+        : [height(state) / 2, H - height(state) / 2];
     const element = host.current!;
     const canvasElement = () => element.querySelector("canvas");
     const ownsLock = () =>
@@ -102,6 +114,7 @@ export default function Arena({
         !canvas ||
         c.paused ||
         state?.phase === "finished" ||
+        state?.boss?.players[c.side] === 0 ||
         requesting ||
         ownsLock()
       )
@@ -123,12 +136,12 @@ export default function Arena({
       const state = kind === "network" ? c.state : local;
       if (c.paused || state?.phase === "finished") return;
       const rect = canvasElement()!.getBoundingClientRect();
-      const half = paddleHeight(mode, state?.hits ?? 0) / 2;
+      const [min, max] = state ? bounds(state, c.side) : [54, H - 54];
       if (rect.height > 0)
         mouseY = Math.max(
-          half,
+          min,
           Math.min(
-            H - half,
+            max,
             (mouseY ?? currentPaddle()) + (e.movementY * H) / rect.height,
           ),
         );
@@ -142,11 +155,16 @@ export default function Arena({
       const canvas = host.current?.querySelector("canvas");
       if (!canvas || e.target !== canvas) return;
       const rect = canvas.getBoundingClientRect();
+      const c = latest.current.control,
+        state = kind === "network" ? c.state : local;
+      const lane = state?.boss
+        ? bossLane(c.side, state.boss.players.length)
+        : { top: 0, bottom: H };
       if (rect.height > 0)
-        mouseY = Math.max(
-          0,
-          Math.min(H, ((e.clientY - rect.top) * H) / rect.height),
-        );
+        mouseY =
+          lane.top +
+          Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)) *
+            (lane.bottom - lane.top);
     };
     const pointerLeave = () => {
       if (!ownsLock()) mouseY = null;
@@ -224,7 +242,8 @@ export default function Arena({
             prediction.reconcile(
               c.state.paddles[c.side],
               c.inputAck[c.side],
-              paddleHeight(c.state.mode, c.state.hits),
+              height(c.state),
+              bounds(c.state, c.side),
             );
             prevNet = lastNet;
             lastNet = c.state;
@@ -247,7 +266,8 @@ export default function Arena({
                 direction,
                 pointer,
                 DT,
-                paddleHeight(lastNet.mode, lastNet.hits),
+                height(lastNet),
+                bounds(lastNet, c.side),
               );
             }
           }
@@ -260,10 +280,9 @@ export default function Arena({
               x: Phaser.Math.Linear(from.ball.x, lastNet.ball.x, t),
               y: Phaser.Math.Linear(from.ball.y, lastNet.ball.y, t),
             },
-            paddles: [
-              Phaser.Math.Linear(from.paddles[0], lastNet.paddles[0], t),
-              Phaser.Math.Linear(from.paddles[1], lastNet.paddles[1], t),
-            ],
+            paddles: lastNet.paddles.map((y, i) =>
+              Phaser.Math.Linear(from.paddles[i] ?? y, y, t),
+            ),
           };
           visual.paddles[c.side] = prediction.y;
         } else {
@@ -271,7 +290,7 @@ export default function Arena({
             accumulator += Math.min(delta / 1000, 0.1);
             while (accumulator >= DT) {
               accumulator -= DT;
-              if (kind === "ai") {
+              if (kind === "ai" && !local.boss) {
                 aiClock -= DT;
                 if (aiClock <= 0) {
                   target = aiTarget(local, difficulty);
@@ -295,10 +314,12 @@ export default function Arena({
           lastHud = time;
           latest.current.onHud({ ...state });
         }
-        const PADDLE = paddleHeight(state.mode, state.hits);
+        const PADDLE = height(state);
         const colors = [
           Phaser.Display.Color.HexStringToColor(s.left).color,
           Phaser.Display.Color.HexStringToColor(s.right).color,
+          0x5bffb0,
+          0xb68cff,
         ];
         for (const e of state.events) {
           if (e.id <= lastEvent) continue;
@@ -313,13 +334,15 @@ export default function Arena({
           effects.emit(
             e,
             s,
-            e.type === "power"
-              ? state.mode === "pulse"
-                ? 0xffd166
-                : 0x5bffb0
-              : e.side === 1
-                ? colors[1]
-                : colors[0],
+            state.boss && e.type.startsWith("boss")
+              ? parseInt(BOSSES[state.boss.id].color.slice(1), 16)
+              : e.type === "player-hit"
+                ? 0xff496f
+                : e.type === "power"
+                  ? state.mode === "pulse"
+                    ? 0xffd166
+                    : 0x5bffb0
+                  : (colors[e.side] ?? colors[0]),
           );
         }
         const g = this.graphics;
@@ -338,6 +361,26 @@ export default function Arena({
         glow = Math.max(0, glow - delta / 900);
         g.lineStyle(3, 0x7287cb, 0.45 + glow * 0.5);
         g.strokeRect(1, 1, W - 2, H - 2);
+        if (state.boss) {
+          if (state.boss.players[c.side] <= 0) releaseLock();
+          drawBossBattle(g, state, s, c.side);
+          effects.draw(g, delta / 1000, s);
+          const phaseEvent = [...state.events]
+            .reverse()
+            .find((e) => e.type === "boss-phase");
+          this.label.setText(
+            c.paused
+              ? ""
+              : state.phase === "countdown"
+                ? String(Math.ceil(Math.max(0, state.timer)))
+                : phaseEvent?.time !== undefined &&
+                    state.elapsed - phaseEvent.time < 1
+                  ? `PHASE ${state.boss.phase}`
+                  : "",
+          );
+          this.label.setAlpha(1);
+          return;
+        }
         drawMode(g, state, s);
         for (let i = 0; i < 2; i++) {
           const x = i === 0 ? PX : W - PX,
@@ -443,7 +486,9 @@ export default function Arena({
       />
       {kind !== "local" && (
         <span className="capture-hint" role="status">
-          {captureStatus}
+          {control.state?.boss?.players[control.side] === 0
+            ? "Eliminated · Watch your allies"
+            : captureStatus}
         </span>
       )}
     </div>

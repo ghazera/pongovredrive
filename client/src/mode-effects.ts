@@ -1,7 +1,12 @@
 import type Phaser from "phaser";
 import type { State } from "../../shared/game";
 import { W, H } from "../../shared/game";
-import { gravityCenter, pulseActive, paddleHeight } from "../../shared/modes";
+import {
+  gravityCenter,
+  bumperY,
+  pulseActive,
+  paddleHeight,
+} from "../../shared/modes";
 import type { Settings } from "./settings";
 export function drawMode(
   g: Phaser.GameObjects.Graphics,
@@ -51,5 +56,14 @@ export function drawMode(
       g.fillStyle(0x5bffb0, 0.5 * opacity);
       g.fillRect(W / 2 - 55, 10, height, 3);
     }
+  }
+  if (state.mode === "ricochet") {
+    const y = bumperY(state.elapsed);
+    g.fillStyle(0x7df9ff, 0.07 * opacity);
+    g.fillCircle(W / 2, y, 54);
+    g.lineStyle(3, 0x7df9ff, 0.8 * opacity);
+    g.strokeCircle(W / 2, y, 45);
+    g.lineStyle(1, 0xffffff, 0.4 * opacity);
+    g.strokeCircle(W / 2, y, 32);
   }
 }

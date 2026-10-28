@@ -1203,3 +1203,175 @@ footer svg {
     min-width: 210px;
   }
 }
+.boss-action {
+  border-color: #7e3f39 !important;
+  color: #ffb097 !important;
+}
+.boss-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 32px 0;
+}
+.boss-cards button {
+  text-align: left;
+  padding: 22px 18px;
+  letter-spacing: 0;
+  background: linear-gradient(145deg, #152039, #0a1022);
+}
+.boss-cards button.selected {
+  background: #20233a;
+  box-shadow: 0 0 25px #ff805912;
+}
+.boss-cards strong,
+.boss-cards small,
+.boss-cards span {
+  display: block;
+}
+.boss-cards strong {
+  font-size: 15px;
+  letter-spacing: 1px;
+  margin: 12px 0;
+}
+.boss-cards small {
+  color: #a6b2cf;
+  font-size: 10px;
+}
+.boss-cards p {
+  font-size: 12px;
+  min-height: 76px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.boss-cards span {
+  font-size: 8px;
+  color: #8492b0;
+  letter-spacing: 1px;
+}
+.boss-icon {
+  display: block;
+  width: 130px;
+  height: 130px;
+  margin: 0 auto 15px;
+  filter: drop-shadow(0 0 10px #a855f733);
+}
+.raid-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.boss-health {
+  max-width: 700px;
+  margin: 25px auto;
+}
+.boss-health > div:first-child {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  justify-content: space-between;
+}
+.boss-health strong {
+  font-size: 25px;
+  letter-spacing: 2px;
+}
+.boss-health span,
+.boss-health b {
+  font-size: 10px;
+  color: #b9c4df;
+}
+.boss-hp-track {
+  height: 12px;
+  background: #24314b;
+  border: 1px solid #3a4966;
+  margin-top: 15px;
+}
+.boss-hp-track i {
+  display: block;
+  height: 100%;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 18px #ff805955;
+}
+.boss-health > small {
+  display: block;
+  text-align: right;
+  color: #aebbd5;
+  margin-top: 7px;
+  font-size: 10px;
+}
+.raid-party {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0;
+}
+.raid-party > div {
+  flex: 1;
+  background: #10182d;
+  border-left: 3px solid;
+  padding: 10px;
+  min-width: 0;
+}
+.raid-party strong,
+.raid-party span,
+.raid-party small {
+  display: block;
+}
+.raid-party strong {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.raid-party span {
+  color: #ff849e;
+  margin: 6px 0;
+  font-size: 13px;
+}
+.raid-party small {
+  font-size: 8px;
+  color: #8e9ab5;
+  letter-spacing: 1px;
+}
+.raid-party .down {
+  opacity: 0.45;
+}
+.boss-hud + .mode-status {
+  margin-top: 18px;
+}
+@media (max-width: 700px) {
+  .boss-cards {
+    grid-template-columns: 1fr;
+  }
+  .boss-cards p {
+    min-height: 0;
+  }
+  .boss-icon {
+    float: left;
+    width: 85px;
+    height: 85px;
+    margin-right: 12px;
+  }
+  .boss-health strong {
+    font-size: 16px;
+  }
+  .boss-health span {
+    display: none;
+  }
+  .raid-party {
+    flex-wrap: wrap;
+  }
+  .raid-party > div {
+    min-width: 42%;
+  }
+  .raid-actions button {
+    width: 100%;
+  }
+}
+.raid-cue {
+  text-align: center;
+  color: #c5d2ec;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 9px;
+  background: #101b32;
+  border-top: 1px solid #33415e;
+}

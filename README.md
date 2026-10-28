@@ -25,7 +25,7 @@ Both frontend and `/ws` are served on port 3000. Run commands from the repositor
 ## Play modes
 
 - **Local 2 Players**: left paddle **W/S**, right paddle **↑/↓**. Both players can move simultaneously. Pause and resume using the buttons.
-- **Quick Play**: start immediately against Normal AI.
+- **Quick Play**: start immediately against Normal AI in the selected duel ruleset (or the selected solo boss when Boss Raid is selected).
 - **Play vs AI**: Easy, Normal, Hard or Insane; speed, reaction time, prediction error and wall anticipation vary. AI movement obeys paddle bounds. In AI matches, move the mouse up/down inside the arena to steer your paddle, or use W/S.
 - **Online / LAN**: enter a name, create a room, share the six-character code or invitation link. A second player joins; both press **Ready**. Each client controls its assigned paddle with the mouse inside the arena, W/S or ↑/↓. Mouse control follows the vertical cursor position at 1100 logical pixels/second, including for the right-hand player. Your paddle is predicted locally and reconciled with server acknowledgments, while the ball and opponent stay authoritative. Keyboard movement remains 580 pixels/second. Both players must accept **Rematch** after the result.
 - **Classic**: first to 7, win by 2, absolute cap at 15. **Overdrive** raises ball acceleration.
@@ -33,13 +33,28 @@ Both frontend and `/ws` are served on port 3000. Run commands from the repositor
 - **Gravity**: a moving violet gravity well bends the ball's path while preserving its speed and a playable horizontal component. Its orbit shows where the pull is strongest.
 - **Shrink**: every 2 paddle hits reduce both paddle heights by 8 pixels, down to 52 pixels. Each goal restores the full 108-pixel height. Green brackets and the banner show the current size.
 
-All five rulesets work locally, against AI and over the same LAN/online backend. Choose one on the home screen or in the host section of Online / LAN before creating the room. Guests see the host's mode automatically; rematches retain it. The win-by-two rule and score cap apply to every mode.
+- **Ricochet**: a moving central bumper reflects the ball. Serves start outside the obstacle; watch for changes in direction.
+- **Blitz**: faster initial serves, shorter breaks after goals, first to **5 points** without a two-point lead.
+- **Boss Raid**: choose one of three monsters and play solo or in **2–4 player co-op**. Each player guards a colored lane, catches orbs to send them back and has 5 hearts. Each boss changes attacks across 3 phases. Boss health scales with party size. See [Boss Battle guide](docs/boss-battle.md).
+
+All seven duel rulesets work locally, against AI and over the same LAN/online backend. Choose one on the home screen or in the host section of Online / LAN before creating the room. Guests see the host's mode automatically; rematches retain it. The win-by-two rule and 15-point cap apply to duels except Blitz. Boss Raid uses boss/player health instead of a points target.
 
 **Click inside the arena to capture the mouse** in AI and online/LAN matches. The cursor is hidden and relative movement steers the paddle, so it cannot leave the arena or hit a desktop edge. **Press Escape to release it**; click the arena again to recapture. A small hint shows the capture state. Pause, disconnection, window blur, match end and leaving the arena release capture automatically. Browser permission/policy may deny pointer lock; in that case the normal hover mouse controls and keyboard remain available with an inline notice. No fullscreen is required.
 
 Before capture (or if unavailable), moving the mouse out of the arena stops mouse movement. Press a movement key to return to keyboard control. Mouse movement and cursor capture are disabled in same-computer two-player mode.
 
 Master/effects/music volumes, mute, effects strength, camera shake, particles, graphics quality, colors, ping and reduced motion are saved on the device. Music is an optional quiet synthesized drone. Audio starts only after interaction. Keyboard remapping, touch and gamepad input are not included.
+
+## Boss Battle — solo or with friends
+
+1. Click **BOSS BATTLE** on the home screen.
+2. Choose **Voltmaw**, **Void Watcher** or **Ember Colossus**.
+3. Use **PLAY SOLO**, or **CO-OP RAID · 2–4 PLAYERS** to create an online room.
+4. For co-op, share the invite link and wait for your friends to join before everyone presses **Ready**. The raid starts when all joined players are ready, with a minimum of two.
+5. Catch incoming orbs with your shield to reflect them into the boss. Warnings mark incoming paths. Guard your own lane; other players cannot reflect your targeted orbs.
+6. Losing all hearts eliminates you until the next raid; watch your surviving allies. Everyone still connected votes **Rematch** after victory or defeat.
+
+Use the same LAN or Cloudflare URL as normal multiplayer. No additional port or service is required. Party size and boss selection are fixed once the fight starts; create a new room to change them. Reconnecting retains your seat and health for the 30-second grace period. If a disconnected player's grace expires, they are eliminated and the remaining team can continue. Boss health is not reduced when an ally leaves.
 
 ## LAN
 
@@ -88,7 +103,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e
 ```text
 client/src/   React menus, Phaser arena, pooled effects, audio, settings, network client
 server/       HTTP entry point, authoritative rooms, reconnect and heartbeat
-shared/       physics, five mode rulesets, typed protocol and input validation
+shared/       duel physics, boss encounters, mode definitions and typed protocol
 tests/        unit, WebSocket integration and Chromium end-to-end tests
 docs/         architecture, verification and skills provenance
 ```

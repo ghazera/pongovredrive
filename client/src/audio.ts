@@ -43,7 +43,7 @@ class Sound {
     const f =
       kind === "paddle"
         ? 420 + intensity * 130
-        : kind === "power"
+        : kind === "power" || kind === "boss-phase" || kind === "boss-hit"
           ? 980
           : kind === "wall"
             ? 200
@@ -55,7 +55,11 @@ class Sound {
                   ? 780
                   : 520;
     o.type =
-      kind === "goal" ? "sawtooth" : kind === "power" ? "triangle" : "sine";
+      kind === "goal" || kind === "player-hit"
+        ? "sawtooth"
+        : kind === "power" || kind === "boss-phase" || kind === "boss-hit"
+          ? "triangle"
+          : "sine";
     o.frequency.setValueAtTime(f, t);
     o.frequency.exponentialRampToValueAtTime(
       kind === "win" ? 1320 : Math.max(35, f * 0.42),

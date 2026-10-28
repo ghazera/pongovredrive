@@ -11,10 +11,18 @@ import { Connection } from "./network";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 import { sound } from "./audio";
 import "./style.css";
+import BossMenu from "./BossMenu";
+import BossHUD from "./BossHUD";
+import { BOSSES, type BossId } from "../../shared/bosses";
 import ModePicker from "./ModePicker";
-import { MODES, pulseActive, paddleHeight } from "../../shared/modes";
+import {
+  MODES,
+  pulseActive,
+  paddleHeight,
+  rulesCaption,
+} from "../../shared/modes";
 const Arena = lazy(() => import("./Arena"));
-type Screen = "home" | "ai" | "online" | "room" | "game" | "settings";
+type Screen = "home" | "ai" | "online" | "room" | "game" | "settings" | "boss";
 function Arrow() {
   return (
     <svg
@@ -34,6 +42,7 @@ function App() {
   const [screen, setScreen] = useState<Screen>(
     new URLSearchParams(location.search).has("room") ? "online" : "home",
   );
+  const [bossId, setBossId] = useState<BossId>("voltmaw");
   const [back, setBack] = useState<Screen>("home");
   const [settings, setSettings] = useState(loadSettings),
     [mode, setMode] = useState<Mode>("classic"),
@@ -61,7 +70,7 @@ function App() {
   const localState = useRef<State | null>(null);
   const roomPaused = useRef(false);
   const inputSequence = useRef(0);
-  const inputAck = useRef<[number, number]>([0, 0]);
+  const inputAck = useRef<number[]>([0, 0]);
   useEffect(() => {
     saveSettings(settings);
     sound.configure(settings);
@@ -88,11 +97,18 @@ function App() {
       if (m.type === "ROOM") {
         setRoom(m);
         setMode(m.mode);
+        if (m.boss) setBossId(m.boss);
         setCode(m.code);
         roomPaused.current = m.paused;
         setScreen((s) => (s === "game" ? s : "room"));
       }
       if (m.type === "STATE") {
+        // Seed the HUD from the first official snapshot, even before Phaser's first frame.
+        if (
+          !remote.current ||
+          (remote.current.phase === "finished" && m.state.phase === "countdown")
+        )
+          setHud(m.state);
         remote.current = m.state;
         inputAck.current = m.inputAck;
         roomPaused.current = m.paused;
@@ -138,11 +154,12 @@ function App() {
     setError("");
     setScreen(s);
   }
-  function start(k: "local" | "ai") {
+  function start(k: "local" | "ai", selectedMode: Mode = mode) {
     click();
     connection.leave();
     setKind(k);
-    localState.current = createGame(mode);
+    setMode(selectedMode);
+    localState.current = createGame(selectedMode, bossId);
     setHud(localState.current);
     setPaused(false);
     setRound((n) => n + 1);
@@ -170,10 +187,10 @@ function App() {
   }
   const names =
     kind === "network"
-      ? [
-          room?.players[0]?.name || "Player 1",
-          room?.players[1]?.name || "Player 2",
-        ]
+      ? (room?.players.map((p, i) => p?.name || `Player ${i + 1}`) ?? [
+          "Player 1",
+          "Player 2",
+        ])
       : [
           "Player 1",
           kind === "ai" ? `AI · ${difficulty.toUpperCase()}` : "Player 2",
@@ -251,12 +268,16 @@ function App() {
               </button>
               <button
                 aria-label="LOCAL 2 PLAYERS"
+                disabled={mode === "boss"}
                 onClick={() => start("local")}
               >
                 <span className="action-icon">II</span> LOCAL 2 PLAYERS{" "}
                 <small>W S / ↑ ↓</small>
               </button>
-              <button aria-label="PLAY VS AI" onClick={() => navigate("ai")}>
+              <button
+                aria-label="PLAY VS AI"
+                onClick={() => navigate(mode === "boss" ? "boss" : "ai")}
+              >
                 <span className="action-icon">◇</span> PLAY VS AI{" "}
                 <small>4 LEVELS</small>
               </button>
@@ -266,6 +287,15 @@ function App() {
               >
                 <span className="action-icon">⌁</span> ONLINE / LAN{" "}
                 <small>PLAY WITH FRIENDS</small>
+              </button>
+              <button
+                className="boss-action"
+                onClick={() => {
+                  setMode("boss");
+                  navigate("boss");
+                }}
+              >
+                BOSS BATTLE <small>SOLO / CO-OP · 3 BOSSES</small>
               </button>
               <button
                 className="text-button"
@@ -316,6 +346,18 @@ function App() {
             <p className="art-note">A classic rivalry. A whole new voltage.</p>
           </section>
         </main>
+      )}
+      {screen === "boss" && (
+        <BossMenu
+          boss={bossId}
+          onBoss={setBossId}
+          onSolo={() => start("ai", "boss")}
+          onCoop={() => {
+            setMode("boss");
+            navigate("online");
+          }}
+          onBack={() => navigate("home")}
+        />
       )}
       {screen === "ai" && (
         <main id="main-content" className="panel">
@@ -372,12 +414,32 @@ function App() {
               <h3>Host the match</h3>
               <p>Your arena. Your invitation.</p>
               <ModePicker mode={mode} onChange={setMode} />
+              {mode === "boss" && (
+                <label>
+                  Raid boss
+                  <select
+                    value={bossId}
+                    onChange={(e) => setBossId(e.target.value as BossId)}
+                  >
+                    {Object.entries(BOSSES).map(([id, b]) => (
+                      <option key={id} value={id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <button
                 className="primary"
                 onClick={() => {
                   click();
                   setError("");
-                  connection.connect({ type: "CREATE", name, mode });
+                  connection.connect({
+                    type: "CREATE",
+                    name,
+                    mode,
+                    boss: mode === "boss" ? bossId : undefined,
+                  });
                 }}
               >
                 CREATE ROOM
@@ -431,7 +493,8 @@ function App() {
           <p className="eyebrow">YOUR ARENA IS OPEN</p>
           <h2>Rivals, assemble.</h2>
           <p className="room-mode">
-            {MODES[room.mode].title} · {MODES[room.mode].description}
+            {MODES[room.mode].title} ·{" "}
+            {room.boss ? BOSSES[room.boss].name : MODES[room.mode].description}
           </p>
           <p>Room code</p>
           <div className="room-code" data-testid="room-code">
@@ -448,7 +511,13 @@ function App() {
           <p role="status">{copied || status}</p>
           <div className="players">
             {room.players.map((p, i) => (
-              <div key={i} className={i ? "pink" : "cyan"}>
+              <div
+                key={i}
+                className={i ? "pink" : "cyan"}
+                style={{
+                  color: ["#00e5ff", "#ff3d9a", "#5bffb0", "#b68cff"][i],
+                }}
+              >
                 <div className="avatar">{i ? "◇" : "◈"}</div>
                 <strong>{p?.name || "Waiting for opponent"}</strong>
                 <span>
@@ -466,7 +535,8 @@ function App() {
           <button
             className="primary"
             disabled={
-              !room.players.every(Boolean) || room.players[room.side]?.ready
+              (room.mode !== "boss" && !room.players.every(Boolean)) ||
+              room.players[room.side]?.ready
             }
             onClick={() => {
               click();
@@ -476,6 +546,12 @@ function App() {
             READY
           </button>
           <button onClick={leave}>LEAVE ROOM</button>
+          {room.mode === "boss" && (
+            <p className="subtle">
+              Invite up to 3 friends before pressing Ready. Starts when at least
+              2 joined players are ready. Every player guards one lane.
+            </p>
+          )}
           {error && (
             <p role="alert" className="error">
               {error}
@@ -489,32 +565,42 @@ function App() {
             <span>
               <i /> {kind === "network" ? status : "LOCAL SESSION"}
             </span>
-            <span>{mode.toUpperCase()} · FIRST TO 7 · WIN BY 2</span>
+            <span>
+              {mode.toUpperCase()} · {rulesCaption(mode)}
+            </span>
             <span>
               {kind === "network" && settings.ping
                 ? `${ping} ms`
                 : "60 Hz SIMULATION"}
             </span>
           </div>
-          <div className="scoreboard">
-            <div className="player-name cyan">
-              <span>◈</span>
-              <strong>{names[0]}</strong>
+          {hud.boss ? (
+            <BossHUD
+              state={hud}
+              names={names}
+              side={kind === "network" ? (room?.side ?? 0) : 0}
+            />
+          ) : (
+            <div className="scoreboard">
+              <div className="player-name cyan">
+                <span>◈</span>
+                <strong>{names[0]}</strong>
+              </div>
+              <div
+                data-testid="score"
+                className="score"
+                key={hud.score.join("-")}
+              >
+                {hud.score[0]}
+                <span>:</span>
+                {hud.score[1]}
+              </div>
+              <div className="player-name pink">
+                <strong>{names[1]}</strong>
+                <span>◇</span>
+              </div>
             </div>
-            <div
-              data-testid="score"
-              className="score"
-              key={hud.score.join("-")}
-            >
-              {hud.score[0]}
-              <span>:</span>
-              {hud.score[1]}
-            </div>
-            <div className="player-name pink">
-              <strong>{names[1]}</strong>
-              <span>◇</span>
-            </div>
-          </div>
+          )}
           <div
             className="mode-status"
             style={{ borderColor: MODES[mode].color }}
@@ -522,15 +608,17 @@ function App() {
           >
             <strong>{MODES[mode].title}</strong>
             <span>
-              {mode === "pulse"
-                ? pulseActive(hud.elapsed)
-                  ? "POWER WINDOW · GOALS ×2"
-                  : `GOALS ×2 IN ${Math.max(0, Math.ceil(6 - (hud.elapsed % 8)))}s`
-                : mode === "gravity"
-                  ? "READ THE CURVE · MOVING GRAVITY WELL"
-                  : mode === "shrink"
-                    ? `PADDLE SIZE ${Math.round((paddleHeight(mode, hud.hits) / 108) * 100)}% · RESETS ON GOAL`
-                    : MODES[mode].description}
+              {hud.boss
+                ? `${hud.boss.parries} PARRIES · ${hud.boss.players.filter((hp) => hp > 0).length} ALLIES STANDING · GUARD YOUR COLORED LANE`
+                : mode === "pulse"
+                  ? pulseActive(hud.elapsed)
+                    ? "POWER WINDOW · GOALS ×2"
+                    : `GOALS ×2 IN ${Math.max(0, Math.ceil(6 - (hud.elapsed % 8)))}s`
+                  : mode === "gravity"
+                    ? "READ THE CURVE · MOVING GRAVITY WELL"
+                    : mode === "shrink"
+                      ? `PADDLE SIZE ${Math.round((paddleHeight(mode, hud.hits) / 108) * 100)}% · RESETS ON GOAL`
+                      : MODES[mode].description}
             </span>
           </div>
           <div className="arena-wrap">
@@ -566,9 +654,25 @@ function App() {
             {hud.phase === "finished" && (
               <div className="victory">
                 <span className="victory-symbol">✦</span>
-                <p>THE GRID HAS A CHAMPION</p>
-                <h2>{names[hud.winner]} wins.</h2>
-                <div className="final-score">{hud.score.join(" : ")}</div>
+                <p>
+                  {hud.boss
+                    ? "BOSS BATTLE COMPLETE"
+                    : "THE GRID HAS A CHAMPION"}
+                </p>
+                <h2>
+                  {hud.boss
+                    ? hud.winner === 0
+                      ? "RAID CLEARED"
+                      : "TEAM DEFEATED"
+                    : `${names[hud.winner]} wins.`}
+                </h2>
+                <div className="final-score">
+                  {hud.boss
+                    ? hud.winner === 0
+                      ? "BOSS DOWN"
+                      : "TRY AGAIN"
+                    : hud.score.join(" : ")}
+                </div>
                 <div className="stats">
                   <span>
                     {Math.floor(hud.elapsed)}s<small>MATCH TIME</small>
@@ -592,8 +696,10 @@ function App() {
                 {kind === "network" && (
                   <p>
                     {room?.players[room.side]?.ready
-                      ? "Waiting for opponent to accept…"
-                      : "Both players must accept."}
+                      ? "Waiting for the other players…"
+                      : hud.boss
+                        ? "All remaining allies must accept."
+                        : "Both players must accept."}
                   </p>
                 )}
                 <button onClick={() => setConfirm(true)}>MAIN MENU</button>
@@ -610,9 +716,11 @@ function App() {
               <span className="toolbar-right">
                 {kind === "local"
                   ? "PLAYER 2  ↑ / ↓"
-                  : kind === "ai"
-                    ? difficulty.toUpperCase() + " AI"
-                    : ""}
+                  : hud.boss
+                    ? "REFLECT THE ORBS"
+                    : kind === "ai"
+                      ? difficulty.toUpperCase() + " AI"
+                      : ""}
               </span>
             </span>
             <div>

@@ -35,7 +35,13 @@ export class Effects {
   }));
   emit(e: GameEvent, s: Settings, color: number) {
     if (s.reduced) return;
-    const goal = e.type === "goal" || e.type === "win" || e.type === "power";
+    const goal =
+      e.type === "goal" ||
+      e.type === "win" ||
+      e.type === "power" ||
+      e.type === "boss-phase" ||
+      e.type === "boss-hit" ||
+      e.type === "player-hit";
     const count =
       (s.particles === "low" ? 6 : s.particles === "medium" ? 16 : 30) *
       (goal ? 3 : 1);

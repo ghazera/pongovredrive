@@ -16,7 +16,7 @@ type Player = {
 };
 type Room = {
   code: string;
-  players: [Player | null, Player | null];
+  players: (Player | null)[];
   state: State;
   started: boolean;
   updated: number;
@@ -39,7 +39,11 @@ export function makeServer(options: { graceMs?: number } = {}) {
       ws.send(JSON.stringify(m));
   };
   const paused = (r: Room) =>
-    !r.players.every((p) => p?.socket?.readyState === WebSocket.OPEN);
+    r.state.boss
+      ? r.players.some(
+          (p) => p !== null && p.socket?.readyState !== WebSocket.OPEN,
+        )
+      : !r.players.every((p) => p?.socket?.readyState === WebSocket.OPEN);
   function broadcast(r: Room) {
     r.players.forEach((p, i) => {
       if (p)
@@ -47,6 +51,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
           type: "ROOM",
           code: r.code,
           mode: r.state.mode,
+          boss: r.state.boss?.id,
           side: i,
           token: p.token,
           players: r.players.map((q) =>
@@ -146,8 +151,8 @@ export function makeServer(options: { graceMs?: number } = {}) {
           } while (rooms.has(code));
           room = {
             code,
-            players: [null, null],
-            state: createGame(m.mode),
+            players: Array(m.mode === "boss" ? 4 : 2).fill(null),
+            state: createGame(m.mode, m.boss),
             started: false,
             updated: Date.now(),
           };
@@ -219,8 +224,13 @@ export function makeServer(options: { graceMs?: number } = {}) {
           return;
         }
         p.ready = true;
-        if (r.players.every((p) => p?.ready)) {
-          r.state = createGame(r.state.mode);
+        if (r.players.filter(Boolean).every((p) => p!.ready)) {
+          if (r.state.boss) r.players = r.players.filter(Boolean);
+          r.state = createGame(
+            r.state.mode,
+            r.state.boss?.id,
+            r.players.length,
+          );
           r.started = true;
           r.players.forEach((p) => {
             if (p) p.ready = false;
@@ -235,7 +245,16 @@ export function makeServer(options: { graceMs?: number } = {}) {
           return;
         }
         p.ready = true;
-        if (r.players.every((p) => p?.ready && p.socket)) {
+        if (
+          r.state.boss
+            ? r.players.filter(Boolean).length >= 2 &&
+              r.players.filter(Boolean).every((p) => p!.ready && p!.socket)
+            : r.players.every((p) => p?.ready && p.socket)
+        ) {
+          if (r.state.boss) {
+            r.players = r.players.filter(Boolean);
+            r.state = createGame("boss", r.state.boss.id, r.players.length);
+          }
           r.started = true;
           r.players.forEach((p) => {
             if (p) p.ready = false;
@@ -260,13 +279,21 @@ export function makeServer(options: { graceMs?: number } = {}) {
       acc -= DT;
       ticks++;
       for (const r of rooms.values()) {
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < r.players.length; i++) {
           const p = r.players[i];
           if (p && !p.socket && p.until <= Date.now()) {
             r.players[i] = null;
-            if (r.started) {
-              r.state.phase = "finished";
-              r.state.winner = 1 - i;
+            if (r.started && r.state.phase !== "finished") {
+              if (r.state.boss) {
+                r.state.boss.players[i] = 0;
+                if (r.state.boss.players.every((hp) => hp <= 0)) {
+                  r.state.phase = "finished";
+                  r.state.winner = 1;
+                }
+              } else {
+                r.state.phase = "finished";
+                r.state.winner = 1 - i;
+              }
               r.players.forEach((p) => {
                 if (p) p.ready = false;
               });
@@ -286,7 +313,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
             send(p?.socket ?? null, {
               type: "STATE",
               state: r.state,
-              inputAck: [r.players[0]?.seq ?? 0, r.players[1]?.seq ?? 0],
+              inputAck: r.players.map((p) => p?.seq ?? 0),
               paused: paused(r),
             }),
           );
