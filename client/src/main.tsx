@@ -11,6 +11,8 @@ import { Connection } from "./network";
 import { loadSettings, saveSettings, type Settings } from "./settings";
 import { sound } from "./audio";
 import "./style.css";
+import ModePicker from "./ModePicker";
+import { MODES, pulseActive, paddleHeight } from "../../shared/modes";
 const Arena = lazy(() => import("./Arena"));
 type Screen = "home" | "ai" | "online" | "room" | "game" | "settings";
 function Arrow() {
@@ -58,6 +60,8 @@ function App() {
   const remote = useRef<State | null>(null);
   const localState = useRef<State | null>(null);
   const roomPaused = useRef(false);
+  const inputSequence = useRef(0);
+  const inputAck = useRef<[number, number]>([0, 0]);
   useEffect(() => {
     saveSettings(settings);
     sound.configure(settings);
@@ -83,12 +87,14 @@ function App() {
       }
       if (m.type === "ROOM") {
         setRoom(m);
+        setMode(m.mode);
         setCode(m.code);
         roomPaused.current = m.paused;
         setScreen((s) => (s === "game" ? s : "room"));
       }
       if (m.type === "STATE") {
         remote.current = m.state;
+        inputAck.current = m.inputAck;
         roomPaused.current = m.paused;
         setKind("network");
         setMode(m.state.mode);
@@ -107,8 +113,20 @@ function App() {
       return kind === "network" ? roomPaused.current : paused;
     },
     settings,
-    send: (d: number) => connection.send({ type: "INPUT", direction: d }),
-    sendPointer: (y: number) => connection.send({ type: "POINTER", y }),
+    side: room?.side ?? 0,
+    get inputAck() {
+      return inputAck.current;
+    },
+    send: (d: number) => {
+      const seq = ++inputSequence.current;
+      connection.send({ type: "INPUT", direction: d, seq });
+      return seq;
+    },
+    sendPointer: (y: number) => {
+      const seq = ++inputSequence.current;
+      connection.send({ type: "POINTER", y, seq });
+      return seq;
+    },
   };
   function click() {
     sound.unlock();
@@ -221,23 +239,7 @@ function App() {
               <br />
               No room to slow down.
             </p>
-            <div className="mode-toggle" aria-label="Rules">
-              <button
-                className={mode === "classic" ? "selected" : ""}
-                onClick={() => setMode("classic")}
-              >
-                CLASSIC
-              </button>
-              <button
-                className={mode === "overdrive" ? "selected" : ""}
-                onClick={() => setMode("overdrive")}
-              >
-                OVERDRIVE{" "}
-                <span>
-                  <Arrow />
-                </span>
-              </button>
-            </div>
+            <ModePicker mode={mode} onChange={setMode} />
             <div className="main-actions">
               <button className="primary quick" onClick={() => start("ai")}>
                 <span>
@@ -369,6 +371,7 @@ function App() {
             <section>
               <h3>Host the match</h3>
               <p>Your arena. Your invitation.</p>
+              <ModePicker mode={mode} onChange={setMode} />
               <button
                 className="primary"
                 onClick={() => {
@@ -427,6 +430,9 @@ function App() {
         <main id="main-content" className="panel room-panel">
           <p className="eyebrow">YOUR ARENA IS OPEN</p>
           <h2>Rivals, assemble.</h2>
+          <p className="room-mode">
+            {MODES[room.mode].title} · {MODES[room.mode].description}
+          </p>
           <p>Room code</p>
           <div className="room-code" data-testid="room-code">
             {room.code}
@@ -508,6 +514,24 @@ function App() {
               <strong>{names[1]}</strong>
               <span>◇</span>
             </div>
+          </div>
+          <div
+            className="mode-status"
+            style={{ borderColor: MODES[mode].color }}
+            role="status"
+          >
+            <strong>{MODES[mode].title}</strong>
+            <span>
+              {mode === "pulse"
+                ? pulseActive(hud.elapsed)
+                  ? "POWER WINDOW · GOALS ×2"
+                  : `GOALS ×2 IN ${Math.max(0, Math.ceil(6 - (hud.elapsed % 8)))}s`
+                : mode === "gravity"
+                  ? "READ THE CURVE · MOVING GRAVITY WELL"
+                  : mode === "shrink"
+                    ? `PADDLE SIZE ${Math.round((paddleHeight(mode, hud.hits) / 108) * 100)}% · RESETS ON GOAL`
+                    : MODES[mode].description}
+            </span>
           </div>
           <div className="arena-wrap">
             <Suspense fallback={<div className="loading">Charging arena…</div>}>

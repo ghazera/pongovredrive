@@ -1,3 +1,11 @@
+import {
+  MODES,
+  paddleHeight,
+  pulseActive,
+  gravityCenter,
+  type Mode,
+} from "./modes";
+export type { Mode } from "./modes";
 export const W = 1280,
   H = 720,
   R = 9,
@@ -6,10 +14,10 @@ export const W = 1280,
   SPEED = 580,
   MAX_SPEED = 1250,
   DT = 1 / 60;
-export type Mode = "classic" | "overdrive";
+export const MOUSE_SPEED = 1100;
 export type GameEvent = {
   id: number;
-  type: "paddle" | "wall" | "goal" | "win" | "serve";
+  type: "paddle" | "wall" | "goal" | "win" | "serve" | "power";
   x: number;
   y: number;
   side: number;
@@ -48,6 +56,29 @@ export function won(a: number, b: number) {
   return a >= 15 || (a >= 7 && a - b >= 2);
 }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+export function movePaddle(
+  y: number,
+  direction: number,
+  target: number | null,
+  dt: number,
+  height = 108,
+): number {
+  if (!Number.isFinite(dt) || dt <= 0) return y;
+  const half = height / 2;
+  if (target !== null && Number.isFinite(target)) {
+    const d = clamp(target, half, H - half) - y;
+    return clamp(
+      y + clamp(d, -MOUSE_SPEED * dt, MOUSE_SPEED * dt),
+      half,
+      H - half,
+    );
+  }
+  return clamp(
+    y + (Number.isFinite(direction) ? clamp(direction, -1, 1) : 0) * SPEED * dt,
+    half,
+    H - half,
+  );
+}
 function event(s: State, type: GameEvent["type"], side = -1) {
   s.events.push({ id: ++s.seq, type, x: s.ball.x, y: s.ball.y, side });
   s.events = s.events.slice(-32);
@@ -66,24 +97,15 @@ export function step(
   const velocities = [0, 0];
   for (let k = 0; k < n; k++) {
     for (let i = 0; i < 2; i++) {
-      const target = targets[i];
-      const v =
-        typeof target === "number" && Number.isFinite(target)
-          ? clamp(
-              (clamp(target, PADDLE / 2, H - PADDLE / 2) - s.paddles[i]) /
-                (SPEED * h),
-              -1,
-              1,
-            )
-          : Number.isFinite(input[i])
-            ? clamp(input[i], -1, 1)
-            : 0;
-      velocities[i] = v;
-      s.paddles[i] = clamp(
-        s.paddles[i] + v * SPEED * h,
-        PADDLE / 2,
-        H - PADDLE / 2,
+      const before = s.paddles[i];
+      s.paddles[i] = movePaddle(
+        before,
+        input[i],
+        targets[i] ?? null,
+        h,
+        paddleHeight(s.mode, s.hits),
       );
+      velocities[i] = clamp((s.paddles[i] - before) / (SPEED * h), -1, 1);
     }
     if (s.phase === "countdown") {
       s.timer -= h;
@@ -93,8 +115,21 @@ export function step(
       }
       continue;
     }
+    const wasPulse = pulseActive(s.elapsed);
     s.elapsed += h;
+    if (s.mode === "pulse" && wasPulse !== pulseActive(s.elapsed))
+      event(s, "power");
     const b = s.ball;
+    if (s.mode === "gravity") {
+      const speed = Math.hypot(b.vx, b.vy);
+      const pull =
+        ((gravityCenter(s.elapsed) - b.y) * 2.6) /
+        (1 + Math.abs(b.x - W / 2) / 220);
+      b.vy = clamp(b.vy + pull * h, -speed * 0.87, speed * 0.87);
+      b.vx =
+        (b.vx < 0 ? -1 : 1) *
+        Math.sqrt(Math.max(0, speed * speed - b.vy * b.vy));
+    }
     const old = b.x;
     b.x += b.vx * h;
     b.y += b.vy * h;
@@ -114,13 +149,17 @@ export function step(
         i === 0
           ? b.vx < 0 && old >= x && b.x <= x
           : b.vx > 0 && old <= x && b.x >= x;
-      if (crossed && Math.abs(b.y - s.paddles[i]) <= PADDLE / 2 + R) {
+      if (
+        crossed &&
+        Math.abs(b.y - s.paddles[i]) <= paddleHeight(s.mode, s.hits) / 2 + R
+      ) {
         const speed = Math.min(
           MAX_SPEED,
-          Math.hypot(b.vx, b.vy) * (s.mode === "overdrive" ? 1.095 : 1.055),
+          Math.hypot(b.vx, b.vy) * MODES[s.mode].acceleration,
         );
         let a = clamp(
-          ((b.y - s.paddles[i]) / (PADDLE / 2)) * 1.02 + velocities[i] * 0.12,
+          ((b.y - s.paddles[i]) / (paddleHeight(s.mode, s.hits) / 2)) * 1.02 +
+            velocities[i] * 0.12,
           -1.12,
           1.12,
         );
@@ -129,13 +168,17 @@ export function step(
         b.vx = (i === 0 ? 1 : -1) * Math.cos(a) * speed;
         b.vy = Math.sin(a) * speed;
         s.hits++;
+        if (s.mode === "shrink" && s.hits % 2 === 0) event(s, "power");
         s.longest = Math.max(s.longest, s.hits);
         event(s, "paddle", i);
       }
     }
     if (b.x < -R || b.x > W + R) {
       const side = b.x > W ? 0 : 1;
-      s.score[side]++;
+      s.score[side] = Math.min(
+        15,
+        s.score[side] + (s.mode === "pulse" && pulseActive(s.elapsed) ? 2 : 1),
+      );
       event(s, "goal", side);
       s.hits = 0;
       if (won(s.score[side], s.score[1 - side])) {

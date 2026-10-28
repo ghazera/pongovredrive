@@ -43,16 +43,19 @@ class Sound {
     const f =
       kind === "paddle"
         ? 420 + intensity * 130
-        : kind === "wall"
-          ? 200
-          : kind === "goal"
-            ? 90
-            : kind === "win"
-              ? 660
-              : kind === "serve"
-                ? 780
-                : 520;
-    o.type = kind === "goal" ? "sawtooth" : "sine";
+        : kind === "power"
+          ? 980
+          : kind === "wall"
+            ? 200
+            : kind === "goal"
+              ? 90
+              : kind === "win"
+                ? 660
+                : kind === "serve"
+                  ? 780
+                  : 520;
+    o.type =
+      kind === "goal" ? "sawtooth" : kind === "power" ? "triangle" : "sine";
     o.frequency.setValueAtTime(f, t);
     o.frequency.exponentialRampToValueAtTime(
       kind === "win" ? 1320 : Math.max(35, f * 0.42),

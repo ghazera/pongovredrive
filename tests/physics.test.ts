@@ -122,7 +122,7 @@ describe("pointer targets", () => {
   it("moves toward a mouse target at paddle speed without teleporting", () => {
     const s = createGame();
     step(s, [0, 0], 1 / 60, [80, null]);
-    expect(s.paddles[0]).toBeCloseTo(350.333333, 5);
+    expect(s.paddles[0]).toBeCloseTo(341.666667, 5);
     expect(s.paddles[1]).toBe(360);
   });
   it("stops exactly at a target and clamps it inside the court", () => {

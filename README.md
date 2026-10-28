@@ -27,8 +27,13 @@ Both frontend and `/ws` are served on port 3000. Run commands from the repositor
 - **Local 2 Players**: left paddle **W/S**, right paddle **↑/↓**. Both players can move simultaneously. Pause and resume using the buttons.
 - **Quick Play**: start immediately against Normal AI.
 - **Play vs AI**: Easy, Normal, Hard or Insane; speed, reaction time, prediction error and wall anticipation vary. AI movement obeys paddle bounds. In AI matches, move the mouse up/down inside the arena to steer your paddle, or use W/S.
-- **Online / LAN**: enter a name, create a room, share the six-character code or invitation link. A second player joins; both press **Ready**. Each client controls its assigned paddle with the mouse inside the arena, W/S or ↑/↓. Mouse control follows the vertical cursor position at the normal paddle speed, including for the right-hand player. Both players must accept **Rematch** after the result.
-- **Classic**: first to 7, win by 2, absolute cap at 15. **Overdrive** raises ball acceleration. Chaos and other bonus modes are not included.
+- **Online / LAN**: enter a name, create a room, share the six-character code or invitation link. A second player joins; both press **Ready**. Each client controls its assigned paddle with the mouse inside the arena, W/S or ↑/↓. Mouse control follows the vertical cursor position at 1100 logical pixels/second, including for the right-hand player. Your paddle is predicted locally and reconciled with server acknowledgments, while the ball and opponent stay authoritative. Keyboard movement remains 580 pixels/second. Both players must accept **Rematch** after the result.
+- **Classic**: first to 7, win by 2, absolute cap at 15. **Overdrive** raises ball acceleration.
+- **Pulse**: an amber energy gate marks a double-points window during seconds 6–8 of every 8 seconds of active play. Goals in that window award 2 points, capped at 15. Watch the countdown in the match banner.
+- **Gravity**: a moving violet gravity well bends the ball's path while preserving its speed and a playable horizontal component. Its orbit shows where the pull is strongest.
+- **Shrink**: every 2 paddle hits reduce both paddle heights by 8 pixels, down to 52 pixels. Each goal restores the full 108-pixel height. Green brackets and the banner show the current size.
+
+All five rulesets work locally, against AI and over the same LAN/online backend. Choose one on the home screen or in the host section of Online / LAN before creating the room. Guests see the host's mode automatically; rematches retain it. The win-by-two rule and score cap apply to every mode.
 
 Moving the mouse out of the arena stops mouse movement. Press a movement key to return to keyboard control. Mouse movement is disabled in same-computer two-player mode.
 
@@ -81,7 +86,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e
 ```text
 client/src/   React menus, Phaser arena, pooled effects, audio, settings, network client
 server/       HTTP entry point, authoritative rooms, reconnect and heartbeat
-shared/       physics, rules, typed protocol and input validation
+shared/       physics, five mode rulesets, typed protocol and input validation
 tests/        unit, WebSocket integration and Chromium end-to-end tests
 docs/         architecture, verification and skills provenance
 ```

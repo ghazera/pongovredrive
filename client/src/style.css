@@ -1103,3 +1103,75 @@ footer svg {
   width: 15px;
   height: 15px;
 }
+.mode-picker {
+  max-width: 420px;
+  margin: 18px 0;
+}
+.mode-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.mode-buttons button {
+  font-size: 9px;
+  padding: 11px 12px;
+  letter-spacing: 1px;
+}
+.mode-buttons button.selected {
+  background: #153348;
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.mode-buttons small {
+  font-size: 6px;
+  color: #ffd166;
+  margin-left: 5px;
+}
+.mode-picker p {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 12px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid;
+  min-height: 33px;
+  color: #aebbd5;
+}
+.mode-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 3px solid;
+  padding: 12px 14px;
+  background: #0c142a;
+  margin-bottom: 14px;
+  gap: 18px;
+}
+.mode-status strong {
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+.mode-status span {
+  font-size: 10px;
+  color: #aebbd5;
+  letter-spacing: 0.6px;
+}
+.room-mode {
+  max-width: 520px;
+  margin: 15px auto;
+}
+.network-panel .mode-picker {
+  max-width: 100%;
+}
+@media (max-width: 700px) {
+  .mode-status span {
+    font-size: 8px;
+  }
+  .mode-status {
+    padding: 10px;
+    gap: 10px;
+  }
+  .mode-buttons button {
+    padding: 10px;
+    font-size: 8px;
+  }
+}

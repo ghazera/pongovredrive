@@ -8,7 +8,6 @@ import {
   DT,
   W,
   H,
-  PADDLE,
   PX,
   type State,
   type Mode,
@@ -17,12 +16,17 @@ import {
 import type { Settings } from "./settings";
 import { sound } from "./audio";
 import { Effects } from "./vfx";
+import { paddleHeight, pulseActive } from "../../shared/modes";
+import { PaddlePrediction } from "./prediction";
+import { drawMode } from "./mode-effects";
 export type ArenaControl = {
   state: State | null;
   paused: boolean;
   settings: Settings;
-  send: (d: number) => void;
-  sendPointer: (y: number) => void;
+  side: number;
+  inputAck: [number, number];
+  send: (d: number) => number;
+  sendPointer: (y: number) => number;
 };
 type Props = {
   kind: "local" | "ai" | "network";
@@ -46,13 +50,11 @@ export default function Arena({
     let accumulator = 0,
       lastHud = 0,
       lastEvent = 0,
-      lastDirection = 99,
       aiClock = 0,
       target = H / 2;
     const keys = new Set<string>();
     let mouseY: number | null = null;
-    let lastPointerY: number | null = null;
-    let lastPointerSent = -Infinity;
+    const prediction = new PaddlePrediction(H / 2);
     const pointerMove = (e: PointerEvent) => {
       if (kind === "local" || e.pointerType !== "mouse") return;
       const canvas = host.current?.querySelector("canvas");
@@ -93,8 +95,10 @@ export default function Arena({
     const blur = () => {
       keys.clear();
       mouseY = null;
-      lastDirection = 99;
-      lastPointerY = null;
+      prediction.reset(
+        latest.current.control.state?.paddles[latest.current.control.side] ??
+          H / 2,
+      );
       latest.current.control.send(0);
     };
     window.addEventListener("keydown", down);
@@ -123,30 +127,44 @@ export default function Arena({
         ];
         if (kind === "network") {
           const direction = input[0] || input[1];
-          if (mouseY !== null && direction === 0) {
-            if (
-              mouseY !== lastPointerY &&
-              time - lastPointerSent >= 1000 / 30
-            ) {
-              c.sendPointer(mouseY);
-              lastPointerY = mouseY;
-              lastPointerSent = time;
-              lastDirection = 99;
-            }
-          } else if (direction !== lastDirection) {
-            c.send(direction);
-            lastDirection = direction;
-            lastPointerY = null;
-          }
           if (c.state && c.state !== lastNet) {
-            if (lastNet?.phase === "finished" && c.state.phase === "countdown")
+            if (
+              lastNet?.phase === "finished" &&
+              c.state.phase === "countdown"
+            ) {
               lastEvent = 0;
+              prediction.reset(c.state.paddles[c.side]);
+            }
+            prediction.reconcile(
+              c.state.paddles[c.side],
+              c.inputAck[c.side],
+              paddleHeight(c.state.mode, c.state.hits),
+            );
             prevNet = lastNet;
             lastNet = c.state;
             received = time;
           }
           if (!lastNet) return;
           if (!visual) visual = structuredClone(lastNet);
+          if (c.paused || lastNet.phase === "finished") {
+            prediction.reset(lastNet.paddles[c.side]);
+            accumulator = 0;
+          } else {
+            accumulator += Math.min(delta / 1000, 0.1);
+            while (accumulator >= DT) {
+              accumulator -= DT;
+              const pointer = direction === 0 ? mouseY : null;
+              const seq =
+                pointer !== null ? c.sendPointer(pointer) : c.send(direction);
+              prediction.push(
+                seq,
+                direction,
+                pointer,
+                DT,
+                paddleHeight(lastNet.mode, lastNet.hits),
+              );
+            }
+          }
           const t = Math.min(1, (time - received) / 50);
           const from = prevNet ?? lastNet;
           visual = {
@@ -161,6 +179,7 @@ export default function Arena({
               Phaser.Math.Linear(from.paddles[1], lastNet.paddles[1], t),
             ],
           };
+          visual.paddles[c.side] = prediction.y;
         } else {
           if (!c.paused) {
             accumulator += Math.min(delta / 1000, 0.1);
@@ -189,6 +208,7 @@ export default function Arena({
           lastHud = time;
           latest.current.onHud({ ...state });
         }
+        const PADDLE = paddleHeight(state.mode, state.hits);
         const colors = [
           Phaser.Display.Color.HexStringToColor(s.left).color,
           Phaser.Display.Color.HexStringToColor(s.right).color,
@@ -203,7 +223,17 @@ export default function Arena({
               e.type === "goal" ? 190 : 55,
               e.type === "goal" ? 0.006 : 0.0015,
             );
-          effects.emit(e, s, e.side === 1 ? colors[1] : colors[0]);
+          effects.emit(
+            e,
+            s,
+            e.type === "power"
+              ? state.mode === "pulse"
+                ? 0xffd166
+                : 0x5bffb0
+              : e.side === 1
+                ? colors[1]
+                : colors[0],
+          );
         }
         const g = this.graphics;
         g.clear();
@@ -221,6 +251,7 @@ export default function Arena({
         glow = Math.max(0, glow - delta / 900);
         g.lineStyle(3, 0x7287cb, 0.45 + glow * 0.5);
         g.strokeRect(1, 1, W - 2, H - 2);
+        drawMode(g, state, s);
         for (let i = 0; i < 2; i++) {
           const x = i === 0 ? PX : W - PX,
             y = state.paddles[i];
@@ -267,13 +298,18 @@ export default function Arena({
         this.label.setText(
           c.paused
             ? ""
-            : glow > 0.7
-              ? "GOAL!"
-              : state.phase === "countdown"
-                ? state.timer > 1.5
-                  ? String(Math.ceil(state.timer))
-                  : "GET READY"
-                : "",
+            : state.mode === "pulse" &&
+                state.phase === "playing" &&
+                pulseActive(state.elapsed) &&
+                state.elapsed % 8 < 6.3
+              ? "DOUBLE POINTS"
+              : glow > 0.7
+                ? "GOAL!"
+                : state.phase === "countdown"
+                  ? state.timer > 1.5
+                    ? String(Math.ceil(state.timer))
+                    : "GET READY"
+                  : "",
         );
         this.label.setAlpha(c.paused || state.phase === "countdown" ? 1 : glow);
       }

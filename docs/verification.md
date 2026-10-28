@@ -58,3 +58,13 @@ Fresh checks for this change:
 - `E2E_PRODUCTION=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e`: **6 passed**, including mouse movement against AI, resized rendering, mouse leave, keyboard handoff, same-computer mode exclusion, independent network players, and the full local victory/rematch flow.
 
 The first visual mouse test helper clipped a canvas extending below the viewport and required a full-element capture. The same-computer assertion was adjusted to allow one screen pixel of rasterization rounding. The complete suite passed after correcting those measurement issues. LAN between physical machines and a public Cloudflare tunnel remain untested.
+
+## Additional multiplayer modes and faster mouse response
+
+Added Pulse, Gravity and Shrink alongside Classic and Overdrive. Host selection is shared with guests before readiness and preserved by rematches. Mode-specific court effects, sequenced power bursts, a distinct synthesized power tone and a match banner communicate the rules. Home, Pulse, Gravity and Shrink screenshots were inspected in Chromium.
+
+Mouse movement now uses a bounded 1100 logical px/s speed, compared with the previous 580 px/s. Keyboard speed remains 580 px/s. Network clients predict only their own paddle at 60 Hz and reconcile from authoritative positions plus unacknowledged numbered input commands. Ball, collisions, score and opponent remain authoritative. A bounded prediction history resets when paused or starting another match.
+
+The browser prediction test deliberately withholds inbound STATE messages while allowing input to reach the server; the rendered local paddle still follows the mouse, and converges after snapshots resume. This demonstrates removal of snapshot-dependent local visual response, not a fixed end-to-end latency guarantee. The test allows the software renderer time to capture the complete arena; no claim of a measured millisecond input latency is made. Real public Cloudflare/LAN ingress and hardware performance remain unverified.
+
+Final verification for this change: **37 unit/network tests passed** (including long finite-state runs for all five modes and prediction replay/reset cases), **10 production Chromium journeys passed** (including all three new multiplayer modes, withheld snapshots and the complete victory/rematch flow). TypeScript, ESLint and the production build passed. Vite retains its existing advisory about the lazy Phaser engine chunk size. No new runtime dependency was added.

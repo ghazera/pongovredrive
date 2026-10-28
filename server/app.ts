@@ -11,6 +11,7 @@ type Player = {
   token: string;
   input: number;
   targetY: number | null;
+  seq: number;
   until: number;
 };
 type Room = {
@@ -45,6 +46,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
         send(p.socket, {
           type: "ROOM",
           code: r.code,
+          mode: r.state.mode,
           side: i,
           token: p.token,
           players: r.players.map((q) =>
@@ -61,6 +63,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
         p.socket = null;
         p.input = 0;
         p.targetY = null;
+        p.seq = 0;
         p.until = Date.now() + (permanent ? 0 : grace);
         broadcast(r);
       }
@@ -165,6 +168,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
           p.socket = ws;
           p.input = 0;
           p.targetY = null;
+          p.seq = 0;
           p.until = 0;
         } else {
           const seat = room.players.findIndex((p) => !p);
@@ -179,6 +183,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
             token: randomBytes(24).toString("hex"),
             input: 0,
             targetY: null,
+            seq: 0,
             until: 0,
           };
         }
@@ -197,12 +202,14 @@ export function makeServer(options: { graceMs?: number } = {}) {
         return;
       }
       if (m.type === "POINTER") {
+        p.seq = m.seq ?? 0;
         p.targetY = m.y;
         p.input = 0;
         return;
       }
       if (m.type === "INPUT") {
         p.targetY = null;
+        p.seq = m.seq ?? 0;
         p.input = m.direction;
         return;
       }
@@ -279,6 +286,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
             send(p?.socket ?? null, {
               type: "STATE",
               state: r.state,
+              inputAck: [r.players[0]?.seq ?? 0, r.players[1]?.seq ?? 0],
               paused: paused(r),
             }),
           );
