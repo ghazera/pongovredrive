@@ -15,7 +15,7 @@ for (const boss of ["VOLTMAW", "VOID WATCHER", "EMBER COLOSSUS"])
     });
     await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
     await expect(page.locator("canvas")).toBeVisible();
-    await expect(page.locator(".boss-health strong")).toHaveText(boss);
+    await expect(page.locator(".boss-health > div:first-child > strong")).toHaveText(boss);
     await expect(page.locator(".raid-party>div")).toHaveCount(1);
     await expect(page.locator(".raid-cue")).not.toContainText("GET READY", {
       timeout: 20000,
@@ -74,7 +74,7 @@ test("four friends share one boss, four lanes, health and reconnect state", asyn
     for (const p of pages) {
       await expect(p.locator("canvas")).toBeVisible();
       await expect(p.locator(".raid-party>div")).toHaveCount(4);
-      await expect(p.locator(".boss-health strong")).toHaveText("VOID WATCHER");
+      await expect(p.locator(".boss-health > div:first-child > strong")).toHaveText("VOID WATCHER");
     }
     await expect
       .poll(() => states.filter((s) => s?.boss?.players.length === 4).length)
@@ -124,5 +124,71 @@ test("solo defeat shows the raid result and rematch restores health", async ({
   await expect(
     page.getByRole("heading", { name: "TEAM DEFEATED", exact: true }),
   ).not.toBeVisible();
-  await expect(page.getByTestId("boss-health")).toHaveText("10 / 10 HP");
+  await expect(page.getByTestId("boss-health")).toHaveText("66 / 66 HP");
+});
+
+test("a real cooperative phase clear displays the next tactic and a safe recovery transition", async ({
+  browser,
+}) => {
+  test.setTimeout(90000);
+  const a = await browser.newContext(),
+    b = await browser.newContext();
+  const p = await a.newPage(),
+    q = await b.newPage();
+  const { bossTargets } = await import("../helpers/boss-driver");
+  const errors: string[] = [];
+  for (const page of [p, q]) {
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.routeWebSocket("**/ws", (ws) => {
+      const server = ws.connectToServer();
+      let side = 0,
+        seq = 0;
+      ws.onMessage((raw) => {
+        const m = JSON.parse(raw.toString());
+        if (m.type !== "INPUT" && m.type !== "POINTER") server.send(raw);
+      });
+      server.onMessage((raw) => {
+        const m = JSON.parse(raw.toString());
+        if (m.type === "ROOM") side = m.side;
+        if (m.type === "STATE" && m.state.phase !== "finished") {
+          server.send(
+            JSON.stringify({
+              type: "POINTER",
+              y: bossTargets(m.state)[side],
+              seq: ++seq,
+            }),
+          );
+        }
+        ws.send(raw);
+      });
+    });
+  }
+  try {
+    await p.goto("/");
+    await p.getByRole("button", { name: /BOSS BATTLE/ }).click();
+    await p
+      .getByRole("button", { name: "CO-OP RAID · 2–4 PLAYERS", exact: true })
+      .click();
+    await p.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
+    const code = await p.getByTestId("room-code").innerText();
+    await q.goto("/?room=" + code);
+    await q.getByRole("button", { name: "JOIN ROOM", exact: true }).click();
+    await p.getByRole("button", { name: "READY", exact: true }).click();
+    await q.getByRole("button", { name: "READY", exact: true }).click();
+    await expect(p.locator(".boss-phase-track span")).toHaveCount(5);
+    await expect(p.locator(".boss-health b")).toContainText("PHASE 2 / 5", {
+      timeout: 70000,
+    });
+    await expect(q.locator(".boss-health b")).toContainText("PHASE 2 / 5");
+    await expect(p.locator(".raid-cue")).toContainText("REFORMATION");
+    await expect(p.locator(".boss-tactic")).toContainText("sweeping");
+    await p.screenshot({
+      path: "test-results/boss-phase-transition.png",
+      fullPage: true,
+    });
+    expect(errors).toEqual([]);
+  } finally {
+    await a.close();
+    await b.close();
+  }
 });

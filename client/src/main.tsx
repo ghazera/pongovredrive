@@ -295,7 +295,7 @@ function App() {
                   navigate("boss");
                 }}
               >
-                BOSS BATTLE <small>SOLO / CO-OP · 3 BOSSES</small>
+                BOSS BATTLE <small>SOLO / CO-OP · 3 BOSSES · 5 PHASES</small>
               </button>
               <button
                 className="text-button"

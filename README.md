@@ -35,7 +35,7 @@ Both frontend and `/ws` are served on port 3000. Run commands from the repositor
 
 - **Ricochet**: a moving central bumper reflects the ball. Serves start outside the obstacle; watch for changes in direction.
 - **Blitz**: faster initial serves, shorter breaks after goals, first to **5 points** without a two-point lead.
-- **Boss Raid**: choose one of three monsters and play solo or in **2–4 player co-op**. Each player guards a colored lane, catches orbs to send them back and has 5 hearts. Each boss changes attacks across 3 phases. Boss health scales with party size. See [Boss Battle guide](docs/boss-battle.md).
+- **Boss Raid**: choose one of three monsters and play solo or in **2–4 player co-op**. Each player guards a colored lane, catches orbs to send them back and has 5 hearts. Each boss has 5 authored phases with separate health pools, new attack patterns and safe recovery transitions. Boss health scales with party size. Surviving allies recover one heart at each phase break; eliminated players are not revived. See [Boss Battle guide](docs/boss-battle.md).
 
 All seven duel rulesets work locally, against AI and over the same LAN/online backend. Choose one on the home screen or in the host section of Online / LAN before creating the room. Guests see the host's mode automatically; rematches retain it. The win-by-two rule and 15-point cap apply to duels except Blitz. Boss Raid uses boss/player health instead of a points target.
 
@@ -51,8 +51,9 @@ Master/effects/music volumes, mute, effects strength, camera shake, particles, g
 2. Choose **Voltmaw**, **Void Watcher** or **Ember Colossus**.
 3. Use **PLAY SOLO**, or **CO-OP RAID · 2–4 PLAYERS** to create an online room.
 4. For co-op, share the invite link and wait for your friends to join before everyone presses **Ready**. The raid starts when all joined players are ready, with a minimum of two.
-5. Catch incoming orbs with your shield to reflect them into the boss. Warnings mark incoming paths. Guard your own lane; other players cannot reflect your targeted orbs.
-6. Losing all hearts eliminates you until the next raid; watch your surviving allies. Everyone still connected votes **Rematch** after victory or defeat.
+5. Catch incoming orbs with your shield to reflect them into the boss. Solid warnings launch real orbs; hollow circles are decoys. Lava waves require moving into the green safe gap. Some orbs pause midair before resuming. Guard your own lane; other players cannot reflect your targeted orbs.
+6. Clear all 5 phases. Each phase has its own health bar and tactic. A 3.2-second recovery transition clears old attacks and restores one heart to each surviving ally. Successful simulated fights take roughly 3½–4¼ minutes solo or 3 minutes with a full party, depending on the boss; these are not guaranteed human completion times.
+7. Losing all hearts eliminates you until the next raid; watch your surviving allies. Everyone still connected votes **Rematch** after victory or defeat.
 
 Use the same LAN or Cloudflare URL as normal multiplayer. No additional port or service is required. Party size and boss selection are fixed once the fight starts; create a new room to change them. Reconnecting retains your seat and health for the 30-second grace period. If a disconnected player's grace expires, they are eliminated and the remaining team can continue. Boss health is not reduced when an ally leaves.
 

@@ -1,5 +1,7 @@
 import {
   BOSSES,
+  phaseHealth,
+  PHASE_TRANSITION,
   bossLane,
   raidBounds,
   raidHeight,
@@ -16,6 +18,10 @@ export type Orb = {
   returned: boolean;
   radius: number;
   damage: number;
+  curve?: number;
+  stall?: number;
+  held?: boolean;
+  holdLeft?: number;
 };
 export type Warning = {
   id: number;
@@ -23,12 +29,16 @@ export type Warning = {
   y: number;
   timer: number;
   duration: number;
+  kind?: "orb" | "decoy" | "blast";
 };
 export type BossBattle = {
   id: BossId;
   hp: number;
   maxHp: number;
-  phase: 1 | 2 | 3;
+  phase: number;
+  phaseHp: number;
+  phaseMaxHp: number;
+  transition: number;
   players: number[];
   maxHearts: number;
   orbs: Orb[];
@@ -40,12 +50,18 @@ export type BossBattle = {
   damageTaken: number;
 };
 export function createBoss(id: BossId, count: number): BossBattle {
-  const hp = BOSSES[id].hp + 6 * (count - 1);
+  const hp = BOSSES[id].phases.reduce(
+    (sum, _, i) => sum + phaseHealth(id, i, count),
+    0,
+  );
   return {
     id,
     hp,
     maxHp: hp,
     phase: 1,
+    phaseHp: phaseHealth(id, 0, count),
+    phaseMaxHp: phaseHealth(id, 0, count),
+    transition: 0,
     players: Array(count).fill(5),
     maxHearts: 5,
     orbs: [],
@@ -102,65 +118,94 @@ export function stepBoss(
       }
       continue;
     }
-    if (b.hp <= 0) {
-      b.hp = 0;
-      finish(s, 0);
-      return;
-    }
     if (b.players.every((hp) => hp <= 0)) {
       finish(s, 1);
       return;
     }
     s.elapsed += h;
-    const phase = b.hp / b.maxHp <= 1 / 3 ? 3 : b.hp / b.maxHp <= 2 / 3 ? 2 : 1;
-    if (phase !== b.phase) {
-      b.phase = phase;
-      emit(s, "boss-phase", 1030, 360);
-      b.cooldown = Math.min(b.cooldown, 0.6);
+    if (b.transition > 0) {
+      b.transition = Math.max(0, b.transition - h);
+      continue;
     }
+    const plan = cfg.phases[b.phase - 1];
     b.cooldown -= h;
     if (b.cooldown <= 0) {
       const alive = b.players.flatMap((hp, i) => (hp > 0 ? [i] : []));
       b.wave++;
-      const shots = Math.min(3, b.phase === 1 ? 1 : b.phase === 2 ? 2 : 3);
-      for (let i = 0; i < shots; i++) {
-        const target = alive[(b.wave - 1 + i) % alive.length],
-          lane = bossLane(target, b.players.length),
-          margin = (b.id === "colossus" ? 17 : 11) + 10;
-        const offset = Math.sin(b.wave * 1.9 + i * 2.3) * 0.95;
-        const y =
-          (lane.top + lane.bottom) / 2 +
-          offset * ((lane.bottom - lane.top) / 2 - margin);
-        const duration =
-          (b.id === "colossus" ? 1.15 : 0.9) +
-          i * (alive.length === 1 ? 0.65 : 0.32);
-        b.warnings.push({
-          id: ++b.nextId,
-          target,
-          y,
-          timer: duration,
-          duration,
-        });
-      }
-      b.cooldown = Math.max(
-        cfg.interval - (b.phase - 1) * 0.42,
-        shots * (alive.length === 1 ? 0.65 : 0.32) + 0.15,
-      );
+      const blast = plan.pattern === "blast" && b.wave % 2 === 0;
+      for (let round = 0; round < (blast ? 1 : plan.rounds); round++)
+        for (const [order, target] of alive.entries()) {
+          const lane = bossLane(target, b.players.length),
+            margin = (b.id === "colossus" ? 17 : 11) + 10;
+          let offset = Math.sin(b.wave * 1.9 + target * 2.3) * 0.9;
+          if (plan.pattern === "sweep")
+            offset = [-0.85, 0, 0.85][(b.wave + round + target) % 3];
+          if (plan.pattern === "mirror")
+            offset = (b.wave + target) % 2 ? -0.85 : 0.85;
+          if (plan.pattern === "finale")
+            offset =
+              Math.sin(b.wave * 1.37 + target) * 0.85 * (round % 2 ? -1 : 1);
+          const y =
+            (lane.top + lane.bottom) / 2 +
+            offset * ((lane.bottom - lane.top) / 2 - margin);
+          const duration = blast
+            ? 2.1
+            : plan.telegraph + round * 0.85 + order * 0.08;
+          b.warnings.push({
+            id: ++b.nextId,
+            target,
+            y,
+            timer: duration,
+            duration,
+            kind: blast ? "blast" : "orb",
+          });
+          if (plan.pattern === "feint") {
+            const fake = lane.top + lane.bottom - y;
+            b.warnings.push({
+              id: ++b.nextId,
+              target,
+              y: fake,
+              timer: duration * 0.8,
+              duration: duration * 0.8,
+              kind: "decoy",
+            });
+          }
+        }
+      b.cooldown = Math.max(plan.cadence, plan.rounds * 0.85 + 0.7);
     }
     for (const w of b.warnings) {
       w.timer -= h;
       if (w.timer <= 0) {
-        const speed = cfg.speed + (b.phase - 1) * 95;
+        if (w.kind === "decoy") continue;
+        if (w.kind === "blast") {
+          if (
+            b.players[w.target] > 0 &&
+            Math.abs(s.paddles[w.target] - w.y) >
+              raidHeight(b.players.length) / 2 + 14
+          ) {
+            b.players[w.target] = Math.max(0, b.players[w.target] - 1);
+            b.damageTaken++;
+            s.score[1]++;
+            s.hits = 0;
+            emit(s, "player-hit", PX, w.y, w.target);
+          }
+          emit(s, "boss-blast", 100, w.y, w.target);
+          continue;
+        }
         b.orbs.push({
           id: w.id,
           x: 960,
           y: w.y,
-          vx: -speed,
+          vx: -(cfg.speed + plan.speed),
           vy: 0,
           target: w.target,
           returned: false,
           radius: b.id === "colossus" ? 17 : 11,
           damage: cfg.damage,
+          curve: plan.curve,
+          stall: plan.hold,
+          held: false,
+          holdLeft: 0,
         });
         emit(s, "boss-shot", 960, w.y, w.target);
       }
@@ -168,10 +213,18 @@ export function stepBoss(
     b.warnings = b.warnings.filter((w) => w.timer > 0);
     for (const o of b.orbs) {
       const old = o.x;
-      if (!o.returned && b.id === "watcher") {
+      if (!o.returned && o.stall && !o.held && o.x <= 600) {
+        o.held = true;
+        o.holdLeft = o.stall;
+      }
+      if (!o.returned && (o.holdLeft ?? 0) > 0) {
+        o.holdLeft = Math.max(0, o.holdLeft! - h);
+        continue;
+      }
+      if (!o.returned && (o.curve ?? (b.id === "watcher" ? 65 : 0)) > 0) {
         const lane = bossLane(o.target, b.players.length),
           half = raidHeight(b.players.length) / 2;
-        o.vy = Math.sin(s.elapsed * 3 + o.id) * 105;
+        o.vy = Math.sin(s.elapsed * 3 + o.id) * (o.curve ?? 65);
         o.y = Math.max(
           lane.top + half,
           Math.min(lane.bottom - half, o.y + o.vy * h),
@@ -182,11 +235,28 @@ export function stepBoss(
         o.y += o.vy * h;
         if (o.x >= 1000) {
           b.hp = Math.max(0, b.hp - 1);
+          b.phaseHp = Math.max(0, b.phaseHp - 1);
           s.score[0]++;
           o.x = 2000;
           emit(s, "boss-hit", 1030, 360, o.target);
-          if (b.hp === 0) {
-            finish(s, 0);
+          if (b.phaseHp === 0) {
+            if (b.phase === cfg.phases.length) {
+              b.hp = 0;
+              finish(s, 0);
+              return;
+            }
+            b.phase++;
+            b.phaseHp = phaseHealth(b.id, b.phase - 1, b.players.length);
+            b.phaseMaxHp = b.phaseHp;
+            b.transition = PHASE_TRANSITION;
+            b.wave = 0;
+            b.cooldown = 0;
+            b.orbs = [];
+            b.warnings = [];
+            b.players = b.players.map((hp) =>
+              hp > 0 ? Math.min(b.maxHearts, hp + 1) : 0,
+            );
+            emit(s, "boss-phase", 1030, 360);
             return;
           }
         }

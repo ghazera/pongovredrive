@@ -365,16 +365,12 @@ export default function Arena({
           if (state.boss.players[c.side] <= 0) releaseLock();
           drawBossBattle(g, state, s, c.side);
           effects.draw(g, delta / 1000, s);
-          const phaseEvent = [...state.events]
-            .reverse()
-            .find((e) => e.type === "boss-phase");
           this.label.setText(
             c.paused
               ? ""
               : state.phase === "countdown"
                 ? String(Math.ceil(Math.max(0, state.timer)))
-                : phaseEvent?.time !== undefined &&
-                    state.elapsed - phaseEvent.time < 1
+                : state.boss.transition > 0
                   ? `PHASE ${state.boss.phase}`
                   : "",
           );

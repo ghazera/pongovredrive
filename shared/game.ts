@@ -29,6 +29,7 @@ export type GameEvent = {
     | "power"
     | "boss-shot"
     | "boss-hit"
+    | "boss-blast"
     | "boss-phase"
     | "player-hit";
   x: number;

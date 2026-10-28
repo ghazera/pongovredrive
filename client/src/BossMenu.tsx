@@ -80,10 +80,19 @@ export default function BossMenu({
             <strong>{BOSSES[id].name}</strong>
             <p>{BOSSES[id].description}</p>
             <span>
-              3 PHASES ·{" "}
+              5 PHASES ·{" "}
               {BOSSES[id].damage === 2 ? "HEAVY DAMAGE" : "PATTERN ATTACKS"}
             </span>
           </button>
+        ))}
+      </div>
+      <div className="boss-phase-preview" aria-label="Boss phase overview">
+        {BOSSES[boss].phases.map((p, i) => (
+          <div key={p.name}>
+            <small>PHASE {i + 1}</small>
+            <strong>{p.name}</strong>
+            <p>{p.tactic}</p>
+          </div>
         ))}
       </div>
       <div className="raid-actions">
@@ -94,8 +103,9 @@ export default function BossMenu({
         <button onClick={onBack}>BACK</button>
       </div>
       <p className="subtle">
-        Mouse or W/S to move. Click the arena to lock the cursor; Escape
-        releases it. Each friend protects their own colored lane.
+        Five phases · longer encounters · one heart restored to survivors
+        between phases. Mouse or W/S to move. Click the arena to lock the
+        cursor; Escape releases it. Each friend protects their own colored lane.
       </p>
     </main>
   );

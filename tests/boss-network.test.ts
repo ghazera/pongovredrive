@@ -1,3 +1,4 @@
+import { bossTargets } from "./helpers/boss-driver";
 import { it, expect } from "vitest";
 import { WebSocket } from "ws";
 import { makeServer } from "../server/app";
@@ -34,13 +35,7 @@ it("four authoritative allies defeat a boss, share phases and health, then vote 
         phases.add(b.phase);
         if (m.state.phase !== "finished" && p.room) {
           const side = p.room.side;
-          const incoming = b.orbs
-            .filter((o) => !o.returned && o.target === side)
-            .sort((a, b) => a.x - b.x)[0];
-          const target =
-            incoming?.y ??
-            b.warnings.find((w) => w.target === side)?.y ??
-            m.state.paddles[side];
+          const target = bossTargets(m.state)[side];
           p.ws.send(
             JSON.stringify({ type: "POINTER", y: target, seq: ++p.seq }),
           );
@@ -105,10 +100,10 @@ it("four authoritative allies defeat a boss, share phases and health, then vote 
     await until(() => peers.every((p) => p.state?.boss?.players.length === 4));
     await until(
       () => peers.every((p) => p.state?.phase === "finished"),
-      120000,
+      300000,
     );
     expect(a.state!.winner).toBe(0);
-    expect(phases.size).toBe(3);
+    expect(phases.size).toBe(5);
     for (const p of peers) {
       expect(p.state!.boss!.hp).toBe(0);
       expect(p.state!.score).toEqual(a.state!.score);
@@ -121,7 +116,7 @@ it("four authoritative allies defeat a boss, share phases and health, then vote 
     peers.forEach((p) => p.ws.terminate());
     await server.close();
   }
-}, 130000);
+}, 320000);
 
 it("a raid resumes with the missing ally eliminated after reconnect grace expires", async () => {
   const server = makeServer({ graceMs: 120 });

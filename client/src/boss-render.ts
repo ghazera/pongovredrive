@@ -43,6 +43,25 @@ export function drawBossBattle(
   }
   for (const w of b.warnings) {
     const t = 1 - w.timer / w.duration;
+    if (w.kind === "blast") {
+      const lane = bossLane(w.target, b.players.length),
+        gap = raidHeight(b.players.length) / 2 + 14;
+      g.fillStyle(0xff654a, (0.08 + t * 0.13) * settings.intensity);
+      g.fillRect(0, lane.top, 920, Math.max(0, w.y - gap - lane.top));
+      g.fillRect(0, w.y + gap, 920, Math.max(0, lane.bottom - w.y - gap));
+      g.fillStyle(0x5bffb0, 0.12 * settings.intensity);
+      g.fillRect(0, w.y - gap, 920, gap * 2);
+      g.lineStyle(3, 0x5bffb0, 0.7);
+      g.lineBetween(0, w.y - gap, 920, w.y - gap);
+      g.lineBetween(0, w.y + gap, 920, w.y + gap);
+      continue;
+    }
+    if (w.kind === "decoy") {
+      g.lineStyle(1, 0xa8b4d0, 0.3);
+      g.strokeCircle(75, w.y, 24);
+      for (let x = 100; x < 960; x += 70) g.lineBetween(x, w.y, x + 8, w.y);
+      continue;
+    }
     g.fillStyle(color, (0.03 + t * 0.1) * settings.intensity);
     g.fillRect(0, w.y - 22, 960, 44);
     g.lineStyle(2, color, 0.25 + t * 0.5);
@@ -59,6 +78,13 @@ export function drawBossBattle(
       g.fillStyle(color, 0.022 * settings.intensity);
       g.fillCircle(x, y, 115 + ring * 23);
     }
+  if (b.transition > 0) {
+    const radius = 155 + (settings.reduced ? 0 : Math.sin(s.elapsed * 3) * 8);
+    g.lineStyle(4, color, 0.6 * settings.intensity);
+    g.strokeCircle(x, y, radius);
+    g.fillStyle(color, 0.045 * settings.intensity);
+    g.fillCircle(x, y, radius);
+  }
   g.lineStyle(2, color, 0.3);
   g.strokeCircle(x, y, 130 + b.phase * 9);
   if (b.id === "voltmaw") {
@@ -152,6 +178,13 @@ export function drawBossBattle(
     if (settings.quality !== "low") {
       g.fillStyle(c, 0.12 * settings.intensity);
       g.fillCircle(o.x, o.y, o.radius + 9);
+    }
+    if ((o.holdLeft ?? 0) > 0) {
+      g.lineStyle(2, 0xffffff, 0.7);
+      g.strokeCircle(o.x, o.y, o.radius + 12);
+      g.fillStyle(0xffffff, 0.8);
+      g.fillRect(o.x - 5, o.y - 5, 3, 10);
+      g.fillRect(o.x + 2, o.y - 5, 3, 10);
     }
     g.fillStyle(c);
     g.fillCircle(o.x, o.y, o.radius);

@@ -1,3 +1,4 @@
+import { bossTargets } from "./helpers/boss-driver";
 import { it, expect } from "vitest";
 import { createGame, step } from "../shared/game";
 import { parseMessage } from "../shared/protocol";
@@ -17,7 +18,7 @@ it("telegraphs attacks before spawning a hostile projectile", () => {
   step(s, [0]);
   expect(s.boss!.warnings.length).toBeGreaterThan(0);
   expect(s.boss!.orbs).toHaveLength(0);
-  for (let i = 0; i < 70; i++) step(s, [0]);
+  for (let i = 0; i < 100; i++) step(s, [0]);
   expect(s.boss!.orbs.length).toBeGreaterThan(0);
 });
 it("parries only with the targeted player and damages the boss on return", () => {
@@ -83,16 +84,13 @@ it("a missed orb damages only its target and all players losing health ends the 
   expect(s.phase).toBe("finished");
   expect(s.winner).toBe(1);
 });
-it("enters phases at health thresholds and finishes with a team victory", () => {
+it("finishes only after the final phase is defeated", () => {
   const s = createGame("boss");
   s.phase = "playing";
   const b = s.boss!;
-  b.hp = Math.floor(b.maxHp * 0.6);
-  step(s, [0]);
-  expect(b.phase).toBe(2);
+  b.phase = 5;
+  b.phaseHp = 1;
   b.hp = 1;
-  step(s, [0]);
-  expect(b.phase).toBe(3);
   b.orbs = [
     {
       id: 99,
@@ -138,18 +136,16 @@ for (const id of ["voltmaw", "watcher", "colossus"] as const)
   it(`${id}: a skilled solo defender can reach a real victory across all phases`, () => {
     const s = createGame("boss", id);
     const phases = new Set<number>();
-    for (let frame = 0; frame < 18000 && s.phase !== "finished"; frame++) {
+    for (let frame = 0; frame < 36000 && s.phase !== "finished"; frame++) {
       const b = s.boss!;
       phases.add(b.phase);
-      const incoming = b.orbs
-        .filter((o) => !o.returned && o.target === 0)
-        .sort((a, b) => a.x - b.x)[0];
-      const target = incoming?.y ?? b.warnings[0]?.y ?? 360;
-      step(s, [0], 1 / 60, [target]);
+      step(s, [0], 1 / 60, bossTargets(s));
     }
     expect(s.winner).toBe(0);
     expect(s.boss!.hp).toBe(0);
-    expect(phases.size).toBe(3);
+    expect(phases.size).toBe(5);
+    expect(s.elapsed).toBeGreaterThanOrEqual(180);
+    expect(s.elapsed).toBeLessThan(300);
   });
 it("four stationary players are not immune to the attack pattern", () => {
   const s = createGame("boss", "voltmaw", 4);

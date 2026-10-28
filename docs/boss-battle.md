@@ -1,19 +1,42 @@
 # Boss Battle
 
-A cooperative arcade encounter built around the Pong shield: intercept a hostile orb in your lane to reflect it into the monster. No separate attack key is needed. Each party member has a personal shield and five hearts; orbs targeted at another lane cannot be reflected by you.
+Intercept hostile orbs with the Pong shield and reflect them into the monster. Every player protects their own colored lane and starts with five hearts. Projectiles aimed at another lane cannot be parried by you.
 
-| Boss | Identity | Attack progression | Base HP | Damage per miss |
-| --- | --- | --- | --- | --- |
-| Voltmaw | Electric horned beast | Charged bolt → twin arc → storm barrage | 12 | 1 heart |
-| Void Watcher | Floating cyclops | Seeking eye → twin drift → void swarm; orbs curve inside their lane | 14 | 1 heart |
-| Ember Colossus | Lava golem | Molten shot → furnace volley → meteor barrage; heavy projectiles | 10 | 2 hearts |
+Each boss now has **five authored phases**, each with its own health budget and tactic. On a phase clear, all old attacks disappear, surviving allies recover one heart, and a **3.2-second safe transition** introduces the next attack. Eliminated allies are not revived. A volley already in flight cannot skip a whole stage.
 
-Each additional party member adds 6 boss HP. Phases change at 2/3 and 1/3 remaining health. Later phases send more projectiles and increase speed; warning timing and solo volley spacing keep the pattern readable. Health never depends on rendering or effects.
+| Boss | Five phases | Mechanics | Solo total HP |
+| --- | --- | --- | --- |
+| Voltmaw | Charged awakening → Arc procession → Polarity shift → Ghost circuit → Tempest crown | Aimed bolts, sweeping pairs, polarity drift, hollow decoys, final paired storm | 70 |
+| Void Watcher | The opening eye → Mirror choir → Orbital fracture → Suspended horizon → The unblinking night | Curving orbs, mirror decoys, orbital sweeps, suspended shots, paired void assault | 68 |
+| Ember Colossus | Furnace ignition → Shattered mantle → Lava breathing → Hanging embers → Heart of catastrophe | Heavy shots, ordered fragments, safe-gap lava waves, suspended meteors, final paired barrage | 66 |
 
-To move, use W/S, the mouse, or arrow keys in network play. Click the arena for cursor lock and relative movement; Escape releases it. Your shield stays within its assigned lane. The renderer marks incoming paths before each launch. Catch an orb to return fire automatically. A reflected hit removes one boss HP. A miss removes your hearts, never an ally's. When eliminated, you spectate until a new raid. Surviving allies can still defeat the boss.
+The Colossus's normal projectiles deal two hearts per miss; other normal projectiles and lava waves deal one. Each phase health pool is multiplied by `1 + 0.65 × (party size − 1)` and rounded up, while attacks rotate across the living party. Health remains at its original party scale if an ally leaves.
 
-Use Boss Battle on the home screen to select a monster. Play Solo runs locally. Co-op Raid creates a shared room for 2–4 players, accessible through the same LAN address or Cloudflare Tunnel as duels. Invite everyone before pressing Ready; all joined players must be ready. Late joining during a fight is disabled. All remaining connected players vote for a rematch, which restores health, phases and attack counters.
+Read the warning shapes:
 
-An accidental disconnect pauses the encounter and reserves the player's token/health for the configured grace period (30 seconds by default). After expiry the missing player is eliminated and the party resumes with the existing boss HP. Restarting the server loses in-memory rooms.
+- **Solid path + arrow:** a real projectile will launch. Move the shield to catch it.
+- **Hollow circle + faint broken line:** a decoy. It disappears without firing or damaging anyone.
+- **Red lane with a green gap:** a lava wave. Put the shield inside the green gap before the warning expires; it is avoided, not parried.
+- **A projectile surrounded by a hold ring:** it is temporarily suspended and will continue along its path. Track it rather than leaving the lane prematurely.
 
-The bosses, sounds and vector graphics are original. This is a 2D cooperative shield/parry mode within Neon Pong; it does not reproduce Roblox maps, assets or character movement.
+The HUD shows phase HP, five progression markers, the current tactic and recovery/attack cues. The menu previews every phase before starting. Mouse control, cursor lock (click to capture, Escape to release), W/S and network arrow keys continue to work.
+
+## Pacing evidence
+
+These durations are simulated combat time for a legal target-following defender that successfully completes the fight. They include recovery transitions and exclude the initial countdown. Human performance and network conditions vary.
+
+| Boss | Solo | Four players |
+| --- | --- | --- |
+| Voltmaw | about 3 min 33 s | about 2 min 49 s |
+| Void Watcher | about 3 min 41 s | about 2 min 55 s |
+| Ember Colossus | about 4 min 14 s | about 3 min 22 s |
+
+Regression tests require successful solo clears to last at least 180 simulated seconds and four-player clears at least 150 seconds. These are checks against accidentally shortening the design, not invulnerability timers: each stage ends when its health pool is depleted.
+
+## Solo and cooperative play
+
+Use Boss Battle on the home screen to select a monster. Play Solo runs locally. Co-op Raid creates a shared room for 2–4 players through the same LAN or Cloudflare address as duels. Invite everyone before pressing Ready. Late joining during a fight is disabled. All remaining connected players vote for a fresh raid, which resets all phase health, hearts and attack counters.
+
+Losing all hearts eliminates a player until the next raid. Surviving allies can still win. An accidental disconnect pauses the encounter for the configured reconnect grace (30 seconds by default). After expiry the missing seat is eliminated and the party resumes. A server restart loses in-memory rooms.
+
+The monsters, vector graphics and sounds are original. This is a 2D cooperative shield/parry mode within Neon Pong.

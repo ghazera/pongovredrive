@@ -40,6 +40,7 @@ export class Effects {
       e.type === "win" ||
       e.type === "power" ||
       e.type === "boss-phase" ||
+      e.type === "boss-blast" ||
       e.type === "boss-hit" ||
       e.type === "player-hit";
     const count =
