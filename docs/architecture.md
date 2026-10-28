@@ -27,3 +27,9 @@ Production and development use the same HTTP server and `/ws` route. Vite middle
 `shared/modes.ts` centralizes mode metadata, acceleration, dynamic paddle height, pulse timing and gravity-well position. Pulse awards two goal points in its 2-second active window per 8 seconds of active simulation time, preserving the absolute 15-point cap. Gravity rotates the ball velocity toward a moving vertical attractor, preserving speed and a minimum horizontal component. Shrink uses the rally count to reduce paddle heights; rendering, collisions, movement bounds and prediction all read the same height helper. Goal resets the rally and restores paddle size.
 
 Power transitions emit sequenced authoritative `power` events that trigger pooled shockwaves, sparks and a distinct synthesized tone. Mode-specific Phaser overlays respect graphics intensity and reduced motion. React displays the active rule, power countdown or current paddle size. Room metadata communicates the host's mode before readiness; the server preserves it for rematches.
+
+## Cursor capture
+
+An intentional primary click on the Phaser canvas requests the browser Pointer Lock API in AI/network play. When captured, document-level mouse movement supplies relative `movementY` scaled to the logical court; absolute pointer events are ignored to avoid applying motion twice. Capture starts from the current local/predicted paddle position, and relative targets clamp to the current paddle bounds, including Shrink. The simulation, numbered input protocol and reconciliation are unchanged.
+
+Escape releases the lock. Pointer-lock changes clear pending movement intentions. Paused/disconnected/finished states, window blur and component cleanup also release only this arena's lock. Listeners are removed on cleanup. Synchronous API errors, rejected promises and pointer-lock error events show a nonblocking fallback message. Capture is never requested automatically or in same-computer two-player mode.

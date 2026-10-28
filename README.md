@@ -35,7 +35,9 @@ Both frontend and `/ws` are served on port 3000. Run commands from the repositor
 
 All five rulesets work locally, against AI and over the same LAN/online backend. Choose one on the home screen or in the host section of Online / LAN before creating the room. Guests see the host's mode automatically; rematches retain it. The win-by-two rule and score cap apply to every mode.
 
-Moving the mouse out of the arena stops mouse movement. Press a movement key to return to keyboard control. Mouse movement is disabled in same-computer two-player mode.
+**Click inside the arena to capture the mouse** in AI and online/LAN matches. The cursor is hidden and relative movement steers the paddle, so it cannot leave the arena or hit a desktop edge. **Press Escape to release it**; click the arena again to recapture. A small hint shows the capture state. Pause, disconnection, window blur, match end and leaving the arena release capture automatically. Browser permission/policy may deny pointer lock; in that case the normal hover mouse controls and keyboard remain available with an inline notice. No fullscreen is required.
+
+Before capture (or if unavailable), moving the mouse out of the arena stops mouse movement. Press a movement key to return to keyboard control. Mouse movement and cursor capture are disabled in same-computer two-player mode.
 
 Master/effects/music volumes, mute, effects strength, camera shake, particles, graphics quality, colors, ping and reduced motion are saved on the device. Music is an optional quiet synthesized drone. Audio starts only after interaction. Keyboard remapping, touch and gamepad input are not included.
 

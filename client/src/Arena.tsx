@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import {
   createGame,
@@ -44,6 +44,9 @@ export default function Arena({
   onHud,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const [captureStatus, setCaptureStatus] = useState(
+    "Click arena to capture mouse · Esc to release",
+  );
   const latest = useRef({ control, onHud });
   latest.current = { control, onHud };
   useEffect(() => {
@@ -55,8 +58,87 @@ export default function Arena({
     const keys = new Set<string>();
     let mouseY: number | null = null;
     const prediction = new PaddlePrediction(H / 2);
+    const element = host.current!;
+    const canvasElement = () => element.querySelector("canvas");
+    const ownsLock = () =>
+      document.pointerLockElement !== null &&
+      document.pointerLockElement === canvasElement();
+    const releaseLock = () => {
+      if (ownsLock()) document.exitPointerLock();
+    };
+    let requesting = false;
+    let wasLocked = false;
+    const currentPaddle = () =>
+      kind === "network" ? prediction.y : local.paddles[0];
+    const captureError = () => {
+      requesting = false;
+      setCaptureStatus(
+        "Cursor capture unavailable · Move over the arena or use the keyboard",
+      );
+    };
+    const lockChange = () => {
+      requesting = false;
+      const locked = ownsLock();
+      if (locked) {
+        mouseY = currentPaddle();
+        keys.clear();
+        setCaptureStatus("Mouse captured · Esc to release");
+      } else if (wasLocked) {
+        mouseY = null;
+        keys.clear();
+        latest.current.control.send(0);
+        setCaptureStatus("Click arena to capture mouse · Esc to release");
+      }
+      wasLocked = locked;
+    };
+    const capture = (e: MouseEvent) => {
+      const c = latest.current.control;
+      const canvas = canvasElement();
+      const state = kind === "network" ? c.state : local;
+      if (
+        kind === "local" ||
+        e.button !== 0 ||
+        e.target !== canvas ||
+        !canvas ||
+        c.paused ||
+        state?.phase === "finished" ||
+        requesting ||
+        ownsLock()
+      )
+        return;
+      if (typeof canvas.requestPointerLock !== "function") {
+        captureError();
+        return;
+      }
+      requesting = true;
+      try {
+        Promise.resolve(canvas.requestPointerLock()).catch(captureError);
+      } catch {
+        captureError();
+      }
+    };
+    const relativeMove = (e: MouseEvent) => {
+      if (!ownsLock() || !Number.isFinite(e.movementY)) return;
+      const c = latest.current.control;
+      const state = kind === "network" ? c.state : local;
+      if (c.paused || state?.phase === "finished") return;
+      const rect = canvasElement()!.getBoundingClientRect();
+      const half = paddleHeight(mode, state?.hits ?? 0) / 2;
+      if (rect.height > 0)
+        mouseY = Math.max(
+          half,
+          Math.min(
+            H - half,
+            (mouseY ?? currentPaddle()) + (e.movementY * H) / rect.height,
+          ),
+        );
+    };
+    element.addEventListener("click", capture);
+    document.addEventListener("mousemove", relativeMove);
+    document.addEventListener("pointerlockchange", lockChange);
+    document.addEventListener("pointerlockerror", captureError);
     const pointerMove = (e: PointerEvent) => {
-      if (kind === "local" || e.pointerType !== "mouse") return;
+      if (kind === "local" || e.pointerType !== "mouse" || ownsLock()) return;
       const canvas = host.current?.querySelector("canvas");
       if (!canvas || e.target !== canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -67,9 +149,8 @@ export default function Arena({
         );
     };
     const pointerLeave = () => {
-      mouseY = null;
+      if (!ownsLock()) mouseY = null;
     };
-    const element = host.current!;
     element.addEventListener("pointermove", pointerMove);
     element.addEventListener("pointerleave", pointerLeave);
     let local =
@@ -82,6 +163,10 @@ export default function Arena({
     let received = 0;
     let glow = 0;
     const down = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        releaseLock();
+        return;
+      }
       if (
         ["KeyW", "KeyS", "ArrowUp", "ArrowDown", "Space"].includes(e.code) &&
         !(e.target instanceof HTMLInputElement)
@@ -93,6 +178,7 @@ export default function Arena({
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     const blur = () => {
+      releaseLock();
       keys.clear();
       mouseY = null;
       prediction.reset(
@@ -204,6 +290,7 @@ export default function Arena({
         }
         const state = visual;
         if (!state) return;
+        if (c.paused || state.phase === "finished") releaseLock();
         if (time - lastHud > 90) {
           lastHud = time;
           latest.current.onHud({ ...state });
@@ -327,6 +414,11 @@ export default function Arena({
       banner: false,
     });
     return () => {
+      document.removeEventListener("pointerlockchange", lockChange);
+      document.removeEventListener("pointerlockerror", captureError);
+      document.removeEventListener("mousemove", relativeMove);
+      element.removeEventListener("click", capture);
+      releaseLock();
       element.removeEventListener("pointermove", pointerMove);
       element.removeEventListener("pointerleave", pointerLeave);
       window.removeEventListener("keydown", down);
@@ -339,14 +431,21 @@ export default function Arena({
     };
   }, [kind, mode, difficulty]);
   return (
-    <div
-      className="arena"
-      ref={host}
-      aria-label={
-        kind === "local"
-          ? "Pong arena. Left player W and S; right player up and down arrows."
-          : "Pong arena. Move your paddle with the mouse, W and S, or up and down arrows in online play."
-      }
-    />
+    <div className="arena-container">
+      <div
+        className="arena"
+        ref={host}
+        aria-label={
+          kind === "local"
+            ? "Pong arena. Left player W and S; right player up and down arrows."
+            : "Pong arena. Click to capture the mouse, Escape to release. Move your paddle with the mouse or keyboard."
+        }
+      />
+      {kind !== "local" && (
+        <span className="capture-hint" role="status">
+          {captureStatus}
+        </span>
+      )}
+    </div>
   );
 }
