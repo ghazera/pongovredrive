@@ -4,7 +4,7 @@ An original neon arcade game built with strict TypeScript, Phaser 3, React, Vite
 
 ## Start playing
 
-Node.js 22 or newer and npm are required (validated with Node 24).
+Node.js 22.13+ on the 22.x LTS line, or Node.js 24+, and npm are required (validated with Node 24).
 
 ```sh
 npm install

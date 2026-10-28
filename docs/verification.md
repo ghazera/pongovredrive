@@ -32,3 +32,17 @@ Initial failing tests exposed the unimplemented physics and protocol. Browser ru
 - The Playwright-managed Chromium download was denied by the network policy. The supported `CHROMIUM_PATH` override used the preinstalled browser instead. Download host additions were saved in the configuration draft, not asserted to be applied to this running instance.
 - The cloud installation and startup instructions are saved in a draft. Publication and fresh-task restoration must be performed by the user and have not been verified here.
 - Optional Chaos, key remapping, touch input, gamepads, tournaments and replays are not included.
+
+## Dependency security follow-up
+
+The npm installation screenshot reported three advisories in the development test toolchain: `vitest`, `@vitest/mocker` and `tinypool`. Upgrading Vitest to 4.1.12 removes the affected Tinypool dependency and installs the corrected mocker. ESLint and its JavaScript configuration were upgraded to supported 10.x releases. The Node engine requirement is now 22.13+ within 22.x, or 24+, matching the tooling requirements.
+
+Fresh checks after this update:
+
+- `npm ci --no-fund`: passed, 223 packages installed.
+- `npm audit --json`: zero vulnerabilities at all severity levels.
+- `npm run lint` and `npm run build` (including TypeScript): passed.
+- `npm test`: 17 passed with Vitest 4.1.12, about 38 seconds.
+- `E2E_PRODUCTION=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- tests/e2e/game.spec.ts`: both local and two-browser multiplayer journeys passed. The full-length local victory test was not repeated for this dependency-only change; its earlier result above remains the original validation.
+
+No gameplay or server logic was changed. The npm `allow-scripts` notice in the screenshot is a separate local npm approval setting for esbuild's install script; it is not an audit vulnerability. If a local build reports an esbuild installation error, review esbuild with npm's `approve-scripts` command rather than enabling all package scripts globally. No change to that local policy was made here.
