@@ -108,6 +108,7 @@ function App() {
     },
     settings,
     send: (d: number) => connection.send({ type: "INPUT", direction: d }),
+    sendPointer: (y: number) => connection.send({ type: "POINTER", y }),
   };
   function click() {
     sound.unlock();
@@ -578,8 +579,10 @@ function App() {
           <div className="game-toolbar">
             <span>
               {kind === "network"
-                ? "MOVE  W / S  or  ↑ / ↓"
-                : "PLAYER 1  W / S"}
+                ? "MOVE  MOUSE / W S / ↑ ↓"
+                : kind === "ai"
+                  ? "MOVE  MOUSE / W S"
+                  : "PLAYER 1  W / S"}
               <span className="toolbar-right">
                 {kind === "local"
                   ? "PLAYER 2  ↑ / ↓"

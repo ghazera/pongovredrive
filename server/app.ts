@@ -10,6 +10,7 @@ type Player = {
   socket: WebSocket | null;
   token: string;
   input: number;
+  targetY: number | null;
   until: number;
 };
 type Room = {
@@ -59,6 +60,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
       if (p) {
         p.socket = null;
         p.input = 0;
+        p.targetY = null;
         p.until = Date.now() + (permanent ? 0 : grace);
         broadcast(r);
       }
@@ -162,6 +164,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
           }
           p.socket = ws;
           p.input = 0;
+          p.targetY = null;
           p.until = 0;
         } else {
           const seat = room.players.findIndex((p) => !p);
@@ -175,6 +178,7 @@ export function makeServer(options: { graceMs?: number } = {}) {
             socket: ws,
             token: randomBytes(24).toString("hex"),
             input: 0,
+            targetY: null,
             until: 0,
           };
         }
@@ -192,7 +196,13 @@ export function makeServer(options: { graceMs?: number } = {}) {
         leave(ws, true);
         return;
       }
+      if (m.type === "POINTER") {
+        p.targetY = m.y;
+        p.input = 0;
+        return;
+      }
       if (m.type === "INPUT") {
+        p.targetY = null;
         p.input = m.direction;
         return;
       }
@@ -261,6 +271,8 @@ export function makeServer(options: { graceMs?: number } = {}) {
           step(
             r.state,
             r.players.map((p) => p?.input ?? 0),
+            DT,
+            r.players.map((p) => p?.targetY ?? null),
           );
         if (ticks % 3 === 0 && r.started)
           r.players.forEach((p) =>

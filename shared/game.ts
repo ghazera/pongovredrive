@@ -52,15 +52,33 @@ function event(s: State, type: GameEvent["type"], side = -1) {
   s.events.push({ id: ++s.seq, type, x: s.ball.x, y: s.ball.y, side });
   s.events = s.events.slice(-32);
 }
-export function step(s: State, input: readonly number[], dt = DT): void {
+export function step(
+  s: State,
+  input: readonly number[],
+  dt = DT,
+  targets: readonly (number | null)[] = [],
+): void {
   if (!Number.isFinite(dt) || dt <= 0 || s.phase === "finished") return;
   // Substeps bound displacement below the ball radius, including unusually large frame deltas.
   const total = Math.min(dt, 0.25),
     n = Math.max(1, Math.ceil((total * MAX_SPEED) / 6)),
     h = total / n;
+  const velocities = [0, 0];
   for (let k = 0; k < n; k++) {
     for (let i = 0; i < 2; i++) {
-      const v = Number.isFinite(input[i]) ? clamp(input[i], -1, 1) : 0;
+      const target = targets[i];
+      const v =
+        typeof target === "number" && Number.isFinite(target)
+          ? clamp(
+              (clamp(target, PADDLE / 2, H - PADDLE / 2) - s.paddles[i]) /
+                (SPEED * h),
+              -1,
+              1,
+            )
+          : Number.isFinite(input[i])
+            ? clamp(input[i], -1, 1)
+            : 0;
+      velocities[i] = v;
       s.paddles[i] = clamp(
         s.paddles[i] + v * SPEED * h,
         PADDLE / 2,
@@ -102,7 +120,7 @@ export function step(s: State, input: readonly number[], dt = DT): void {
           Math.hypot(b.vx, b.vy) * (s.mode === "overdrive" ? 1.095 : 1.055),
         );
         let a = clamp(
-          ((b.y - s.paddles[i]) / (PADDLE / 2)) * 1.02 + (input[i] || 0) * 0.12,
+          ((b.y - s.paddles[i]) / (PADDLE / 2)) * 1.02 + velocities[i] * 0.12,
           -1.12,
           1.12,
         );

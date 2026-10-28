@@ -46,3 +46,15 @@ Fresh checks after this update:
 - `E2E_PRODUCTION=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e -- tests/e2e/game.spec.ts`: both local and two-browser multiplayer journeys passed. The full-length local victory test was not repeated for this dependency-only change; its earlier result above remains the original validation.
 
 No gameplay or server logic was changed. The npm `allow-scripts` notice in the screenshot is a separate local npm approval setting for esbuild's install script; it is not an audit vulnerability. If a local build reports an esbuild installation error, review esbuild with npm's `approve-scripts` command rather than enabling all package scripts globally. No change to that local policy was made here.
+
+## Mouse controls follow-up
+
+Mouse control is enabled against AI and in network matches, and disabled in same-computer two-player mode. The shared simulation moves toward the mouse target at the existing paddle speed, stops precisely at the target and clamps inside the court. Network targets are validated and apply only to the sender's assigned paddle; keyboard input and disconnect clear them. Browser coordinates scale to the logical court after resizing. Leaving the arena stops mouse movement.
+
+Fresh checks for this change:
+
+- `npm test`: **21 passed**, including target following, no teleportation/overshoot, court bounds, invalid targets, network seat isolation and switching back to keyboard input.
+- `npm run build`, `npm run typecheck` and `npm run lint`: passed.
+- `E2E_PRODUCTION=1 CHROMIUM_PATH=/usr/bin/chromium npm run test:e2e`: **6 passed**, including mouse movement against AI, resized rendering, mouse leave, keyboard handoff, same-computer mode exclusion, independent network players, and the full local victory/rematch flow.
+
+The first visual mouse test helper clipped a canvas extending below the viewport and required a full-element capture. The same-computer assertion was adjusted to allow one screen pixel of rasterization rounding. The complete suite passed after correcting those measurement issues. LAN between physical machines and a public Cloudflare tunnel remain untested.

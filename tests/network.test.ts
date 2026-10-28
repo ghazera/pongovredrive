@@ -69,6 +69,26 @@ it("hosts authoritative matches, reserves seats, reconnects and rejects forged s
     expect(state.type === "STATE" && state.state.paddles[0]).toBeLessThan(360);
     a.send({ type: "STATE", score: [100, 0] });
     expect((await a.wait("ERROR")).type).toBe("ERROR");
+    a.send({ type: "INPUT", direction: 0 });
+    b.send({ type: "POINTER", y: 600, side: 0 });
+    await new Promise((r) => setTimeout(r, 150));
+    a.messages.length = 0;
+    const mouseState = await a.wait("STATE");
+    expect(
+      mouseState.type === "STATE" && mouseState.state.paddles[1],
+    ).toBeGreaterThan(400);
+    expect(
+      mouseState.type === "STATE" && mouseState.state.paddles[0],
+    ).toBeLessThan(360);
+    b.send({ type: "INPUT", direction: -1 });
+    await new Promise((r) => setTimeout(r, 100));
+    a.messages.length = 0;
+    const keyboardState = await a.wait("STATE");
+    expect(
+      keyboardState.type === "STATE" && keyboardState.state.paddles[1],
+    ).toBeLessThan(
+      mouseState.type === "STATE" ? mouseState.state.paddles[1] : 0,
+    );
     b.ws.close();
     await new Promise((r) => setTimeout(r, 80));
     a.messages.length = 0;

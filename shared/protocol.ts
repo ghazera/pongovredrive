@@ -1,4 +1,4 @@
-import type { State } from "./game";
+import { H, type State } from "./game";
 export type PlayerView = { name: string; ready: boolean; connected: boolean };
 export type ServerMessage =
   | {
@@ -18,6 +18,7 @@ export type ClientMessage =
   | { type: "RESUME"; code: string; token: string }
   | { type: "READY" }
   | { type: "INPUT"; direction: number }
+  | { type: "POINTER"; y: number }
   | { type: "LEAVE" }
   | { type: "REMATCH" }
   | { type: "PING"; time: number };
@@ -46,6 +47,10 @@ export function parseMessage(raw: string): ClientMessage | null {
           typeof m.token === "string" &&
           /^[a-f0-9]{48}$/.test(m.token)
           ? m
+          : null;
+      case "POINTER":
+        return Number.isFinite(m.y) && m.y >= 0 && m.y <= H
+          ? { type: "POINTER", y: m.y }
           : null;
       case "INPUT":
         return [-1, 0, 1].includes(m.direction)

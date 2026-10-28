@@ -26,9 +26,11 @@ Both frontend and `/ws` are served on port 3000. Run commands from the repositor
 
 - **Local 2 Players**: left paddle **W/S**, right paddle **↑/↓**. Both players can move simultaneously. Pause and resume using the buttons.
 - **Quick Play**: start immediately against Normal AI.
-- **Play vs AI**: Easy, Normal, Hard or Insane; speed, reaction time, prediction error and wall anticipation vary. AI movement obeys paddle bounds.
-- **Online / LAN**: enter a name, create a room, share the six-character code or invitation link. A second player joins; both press **Ready**. Each client controls its assigned paddle with W/S or ↑/↓. Both players must accept **Rematch** after the result.
+- **Play vs AI**: Easy, Normal, Hard or Insane; speed, reaction time, prediction error and wall anticipation vary. AI movement obeys paddle bounds. In AI matches, move the mouse up/down inside the arena to steer your paddle, or use W/S.
+- **Online / LAN**: enter a name, create a room, share the six-character code or invitation link. A second player joins; both press **Ready**. Each client controls its assigned paddle with the mouse inside the arena, W/S or ↑/↓. Mouse control follows the vertical cursor position at the normal paddle speed, including for the right-hand player. Both players must accept **Rematch** after the result.
 - **Classic**: first to 7, win by 2, absolute cap at 15. **Overdrive** raises ball acceleration. Chaos and other bonus modes are not included.
+
+Moving the mouse out of the arena stops mouse movement. Press a movement key to return to keyboard control. Mouse movement is disabled in same-computer two-player mode.
 
 Master/effects/music volumes, mute, effects strength, camera shake, particles, graphics quality, colors, ping and reduced motion are saved on the device. Music is an optional quiet synthesized drone. Audio starts only after interaction. Keyboard remapping, touch and gamepad input are not included.
 

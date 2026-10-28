@@ -117,3 +117,23 @@ describe("rules and progression", () => {
     expect(a.ball.y).toBeCloseTo(b.ball.y, 5);
   });
 });
+
+describe("pointer targets", () => {
+  it("moves toward a mouse target at paddle speed without teleporting", () => {
+    const s = createGame();
+    step(s, [0, 0], 1 / 60, [80, null]);
+    expect(s.paddles[0]).toBeCloseTo(350.333333, 5);
+    expect(s.paddles[1]).toBe(360);
+  });
+  it("stops exactly at a target and clamps it inside the court", () => {
+    const s = createGame();
+    for (let i = 0; i < 120; i++) step(s, [0, 0], 1 / 60, [355, 720]);
+    expect(s.paddles).toEqual([355, 666]);
+  });
+  it("ignores invalid targets and keeps keyboard movement available", () => {
+    const s = createGame();
+    step(s, [-1, 0], 1 / 60, [NaN, Infinity]);
+    expect(s.paddles[0]).toBeCloseTo(350.333333, 5);
+    expect(s.paddles[1]).toBe(360);
+  });
+});

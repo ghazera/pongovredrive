@@ -22,6 +22,7 @@ export type ArenaControl = {
   paused: boolean;
   settings: Settings;
   send: (d: number) => void;
+  sendPointer: (y: number) => void;
 };
 type Props = {
   kind: "local" | "ai" | "network";
@@ -49,6 +50,26 @@ export default function Arena({
       aiClock = 0,
       target = H / 2;
     const keys = new Set<string>();
+    let mouseY: number | null = null;
+    let lastPointerY: number | null = null;
+    let lastPointerSent = -Infinity;
+    const pointerMove = (e: PointerEvent) => {
+      if (kind === "local" || e.pointerType !== "mouse") return;
+      const canvas = host.current?.querySelector("canvas");
+      if (!canvas || e.target !== canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.height > 0)
+        mouseY = Math.max(
+          0,
+          Math.min(H, ((e.clientY - rect.top) * H) / rect.height),
+        );
+    };
+    const pointerLeave = () => {
+      mouseY = null;
+    };
+    const element = host.current!;
+    element.addEventListener("pointermove", pointerMove);
+    element.addEventListener("pointerleave", pointerLeave);
     let local =
       kind !== "network" && control.state ? control.state : createGame(mode);
     const effects = new Effects();
@@ -65,11 +86,15 @@ export default function Arena({
       ) {
         e.preventDefault();
         keys.add(e.code);
+        mouseY = null;
       }
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     const blur = () => {
       keys.clear();
+      mouseY = null;
+      lastDirection = 99;
+      lastPointerY = null;
       latest.current.control.send(0);
     };
     window.addEventListener("keydown", down);
@@ -98,9 +123,20 @@ export default function Arena({
         ];
         if (kind === "network") {
           const direction = input[0] || input[1];
-          if (direction !== lastDirection) {
+          if (mouseY !== null && direction === 0) {
+            if (
+              mouseY !== lastPointerY &&
+              time - lastPointerSent >= 1000 / 30
+            ) {
+              c.sendPointer(mouseY);
+              lastPointerY = mouseY;
+              lastPointerSent = time;
+              lastDirection = 99;
+            }
+          } else if (direction !== lastDirection) {
             c.send(direction);
             lastDirection = direction;
+            lastPointerY = null;
           }
           if (c.state && c.state !== lastNet) {
             if (lastNet?.phase === "finished" && c.state.phase === "countdown")
@@ -142,7 +178,7 @@ export default function Arena({
                     ? 0
                     : (Math.sign(d) * difficulties[difficulty].speed) / 580;
               }
-              step(local, input);
+              step(local, input, DT, kind === "ai" ? [mouseY, null] : []);
             }
           }
           visual = local;
@@ -255,6 +291,8 @@ export default function Arena({
       banner: false,
     });
     return () => {
+      element.removeEventListener("pointermove", pointerMove);
+      element.removeEventListener("pointerleave", pointerLeave);
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
@@ -268,7 +306,11 @@ export default function Arena({
     <div
       className="arena"
       ref={host}
-      aria-label="Pong arena. Left player W and S; right player up and down arrows."
+      aria-label={
+        kind === "local"
+          ? "Pong arena. Left player W and S; right player up and down arrows."
+          : "Pong arena. Move your paddle with the mouse, W and S, or up and down arrows in online play."
+      }
     />
   );
 }
